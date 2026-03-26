@@ -54,24 +54,26 @@ export default function App() {
   }, []);
 
   const handleAddTask = async (task) => {
-    await addTask(task);
+  const success = await addTask(task);
+  if (success !== false) {
     setActiveTab('list');
     setEditingTask(null);
-  };
+  }
+};
 
   const handleEdit = (task) => {
     setEditingTask(task);
     setActiveTab('form');
   };
 
-  if (isLoading || isLoadingTasks) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <Droplet size={48} className="text-blue-500 animate-bounce mb-4" />
-        <p className="text-slate-500 font-medium">Cargando...</p>
-      </div>
-    );
-  }
+if (isLoading || (isLoadingTasks && tasks.length === 0)) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+      <Droplet size={48} className="text-blue-500 animate-bounce mb-4" />
+      <p className="text-slate-500 font-medium">Cargando...</p>
+    </div>
+  );
+}
 
   if (!user) return <Login />;
 

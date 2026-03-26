@@ -1,5 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+// Detecta si el navegador es móvil
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// Función para mostrar notificación compatible con móvil y desktop
+async function showNotification(title, body, icon) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    if (isMobile && 'serviceWorker' in navigator) {
+      // Android requiere Service Worker para mostrar notificaciones
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, { body, icon });
+    } else {
+      // Desktop — usa el constructor directo
+      new Notification(title, { body, icon });
+    }
+  } catch (err) {
+    // Si falla la notificación del sistema, no romper la app
+    console.warn('Notificación del sistema no disponible:', err.message);
+  }
+}
+
 export function useNotifications(tasks) {
   const [permission, setPermission] = useState(
     'Notification' in window ? Notification.permission : 'denied'
@@ -21,7 +44,38 @@ export function useNotifications(tasks) {
     return result;
   };
 
-  // Función para mostrar alertas manualmente desde un botón
+  const buildToast = (task, index) => {
+    const today = new Date().toISOString().split('T')[0];
+    const isOverdue = task.dueDate < today;
+    const isDueToday = task.dueDate === today;
+
+    let type = 'urgent';
+    let title = '';
+    let body = '';
+
+    if (isOverdue) {
+      type = 'overdue';
+      title = '⚠️ Tarea atrasada';
+      body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
+    } else if (isDueToday) {
+      type = 'today';
+      title = '📅 Tarea para hoy';
+      body = `${task.clientName} — ${task.type}`;
+    } else {
+      type = 'urgent';
+      title = '🔴 Tarea urgente';
+      body = `${task.clientName} — ${task.type} (${task.dueDate})`;
+    }
+
+    return {
+      id: `${task.id}-${Date.now()}-${index}`,
+      type,
+      title,
+      body,
+      observations: task.observations || '',
+    };
+  };
+
   const showAlerts = useCallback(() => {
     const today = new Date().toISOString().split('T')[0];
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
@@ -34,46 +88,16 @@ export function useNotifications(tasks) {
         id: `no-alerts-${Date.now()}`,
         type: 'today',
         title: '✅ Todo al día',
-        body: 'No hay tareas urgentes ni atrasadas en este momento.',
+        body: 'No hay tareas urgentes ni atrasadas.',
         observations: '',
       }]);
       return;
     }
 
-    const newToasts = alertTasks.map((task, index) => {
-      const isOverdue = task.dueDate < today;
-      const isDueToday = task.dueDate === today;
-      let type = 'urgent';
-      let title = '';
-      let body = '';
-
-      if (isOverdue) {
-        type = 'overdue';
-        title = '⚠️ Tarea atrasada';
-        body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
-      } else if (isDueToday) {
-        type = 'today';
-        title = '📅 Tarea para hoy';
-        body = `${task.clientName} — ${task.type}`;
-      } else {
-        type = 'urgent';
-        title = '🔴 Tarea urgente';
-        body = `${task.clientName} — ${task.type} (${task.dueDate})`;
-      }
-
-      return {
-        id: `manual-${task.id}-${Date.now()}-${index}`,
-        type,
-        title,
-        body,
-        observations: task.observations || '',
-      };
-    });
-
+    const newToasts = alertTasks.map((task, index) => buildToast(task, index));
     setToasts(newToasts);
   }, [tasks]);
 
-  // Carga inicial automática
   useEffect(() => {
     if (tasks.length === 0) return;
 
@@ -97,39 +121,13 @@ export function useNotifications(tasks) {
         if (notifiedIds.current.has(task.id)) return;
         notifiedIds.current.add(task.id);
 
-        let type = 'urgent';
-        let title = '';
-        let body = '';
+        const toast = buildToast(task, index);
+        newToasts.push(toast);
 
-        if (isOverdue) {
-          type = 'overdue';
-          title = '⚠️ Tarea atrasada';
-          body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
-        } else if (isDueToday) {
-          type = 'today';
-          title = '📅 Tarea para hoy';
-          body = `${task.clientName} — ${task.type}`;
-        } else {
-          type = 'urgent';
-          title = '🔴 Tarea urgente';
-          body = `${task.clientName} — ${task.type} (${task.dueDate})`;
-        }
-
-        if (title) {
-          newToasts.push({
-            id: `${task.id}-${Date.now()}-${index}`,
-            type,
-            title,
-            body,
-            observations: task.observations || '',
-          });
-
-          if (permission === 'granted') {
-            setTimeout(() => {
-              new Notification(title, { body, icon: '/favicon.svg' });
-            }, index * 800);
-          }
-        }
+        // Notificación del sistema con delay escalonado
+        setTimeout(() => {
+          showNotification(toast.title, toast.body, '/favicon.svg');
+        }, index * 800);
       });
 
       if (newToasts.length > 0) setToasts(newToasts);
@@ -137,7 +135,7 @@ export function useNotifications(tasks) {
     }
 
     // Tareas nuevas después de la carga inicial
-    pending.forEach(task => {
+    pending.forEach((task, index) => {
       if (notifiedIds.current.has(task.id)) return;
       notifiedIds.current.add(task.id);
 
@@ -145,36 +143,11 @@ export function useNotifications(tasks) {
       const isDueToday = task.dueDate === today;
       const isUrgent = task.urgency === 'Alta';
 
-      let type = 'urgent';
-      let title = '';
-      let body = '';
+      if (!isOverdue && !isDueToday && !isUrgent) return;
 
-      if (isOverdue) {
-        type = 'overdue';
-        title = '⚠️ Tarea atrasada';
-        body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
-      } else if (isDueToday) {
-        type = 'today';
-        title = '📅 Tarea para hoy';
-        body = `${task.clientName} — ${task.type}`;
-      } else if (isUrgent) {
-        type = 'urgent';
-        title = '🔴 Tarea urgente';
-        body = `${task.clientName} — ${task.type} (${task.dueDate})`;
-      }
-
-      if (title) {
-        setToasts(prev => [...prev, {
-          id: `${task.id}-${Date.now()}`,
-          type,
-          title,
-          body,
-          observations: task.observations || '',
-        }]);
-        if (permission === 'granted') {
-          new Notification(title, { body, icon: '/favicon.svg' });
-        }
-      }
+      const toast = buildToast(task, index);
+      setToasts(prev => [...prev, toast]);
+      showNotification(toast.title, toast.body, '/favicon.svg');
     });
   }, [tasks, permission]);
 
