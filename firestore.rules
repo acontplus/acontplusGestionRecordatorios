@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Regla para los datos de la aplicación
+    match /artifacts/{appId}/public/data/water_filter_tasks/{taskId} {
+
+      // Solo usuarios autenticados pueden leer
+      allow read: if request.auth != null;
+
+      // Solo usuarios autenticados pueden crear y actualizar
+      allow create, update: if request.auth != null
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() > 0
+        && request.resource.data.type is string
+        && request.resource.data.status is string
+        && request.resource.data.urgency is string
+        && request.resource.data.dueDate is string;
+
+      // Solo usuarios autenticados pueden eliminar
+      allow delete: if request.auth != null;
+    }
+
+    // Bloquear todo lo demás
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
