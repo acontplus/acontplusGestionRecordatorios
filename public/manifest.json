@@ -1,0 +1,18 @@
+{
+  "name": "AquaGestor",
+  "short_name": "AquaGestor",
+  "description": "Gestión de mantenimientos de filtros de agua",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
