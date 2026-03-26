@@ -54,26 +54,26 @@ export default function App() {
   }, []);
 
   const handleAddTask = async (task) => {
-  const success = await addTask(task);
-  if (success !== false) {
-    setActiveTab('list');
-    setEditingTask(null);
-  }
-};
+    const success = await addTask(task, user.email);
+    if (success !== false) {
+      setActiveTab('list');
+      setEditingTask(null);
+    }
+  };
 
   const handleEdit = (task) => {
     setEditingTask(task);
     setActiveTab('form');
   };
 
-if (isLoading || (isLoadingTasks && tasks.length === 0)) {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-      <Droplet size={48} className="text-blue-500 animate-bounce mb-4" />
-      <p className="text-slate-500 font-medium">Cargando...</p>
-    </div>
-  );
-}
+  if (isLoading || (isLoadingTasks && tasks.length === 0)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <Droplet size={48} className="text-blue-500 animate-bounce mb-4" />
+        <p className="text-slate-500 font-medium">Cargando...</p>
+      </div>
+    );
+  }
 
   if (!user) return <Login />;
 
@@ -87,10 +87,30 @@ if (isLoading || (isLoadingTasks && tasks.length === 0)) {
             <Droplet size={32} />
             <h1 className="text-xl font-bold">AquaGestor</h1>
           </div>
-          <NavItem icon={<Home />} label="Panel" isActive={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavItem icon={<Wrench />} label="Mantenimientos" isActive={activeTab === 'list'} onClick={() => setActiveTab('list')} />
-          <NavItem icon={<Plus />} label="Nuevo" isActive={activeTab === 'form'} onClick={() => { setEditingTask(null); setActiveTab('form'); }} />
-          <NavItem icon={<FileText />} label="Reportes" isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
+          <NavItem
+            icon={<Home />}
+            label="Panel"
+            isActive={activeTab === 'dashboard'}
+            onClick={() => setActiveTab('dashboard')}
+          />
+          <NavItem
+            icon={<Wrench />}
+            label="Mantenimientos"
+            isActive={activeTab === 'list'}
+            onClick={() => setActiveTab('list')}
+          />
+          <NavItem
+            icon={<Plus />}
+            label="Nuevo"
+            isActive={activeTab === 'form'}
+            onClick={() => { setEditingTask(null); setActiveTab('form'); }}
+          />
+          <NavItem
+            icon={<FileText />}
+            label="Reportes"
+            isActive={activeTab === 'reports'}
+            onClick={() => setActiveTab('reports')}
+          />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -166,6 +186,7 @@ if (isLoading || (isLoadingTasks && tasks.length === 0)) {
             notificationPermission={notificationPermission}
             onRequestNotifications={requestNotifications}
             onShowAlerts={showAlerts}
+            user={user}
           />
         )}
         {activeTab === 'list' && (
@@ -191,7 +212,7 @@ if (isLoading || (isLoadingTasks && tasks.length === 0)) {
         )}
       </main>
 
-      {/* Toasts — se superponen sobre todo el contenido */}
+      {/* Toasts */}
       <Toast toasts={toasts} onClose={removeToast} />
     </div>
   );

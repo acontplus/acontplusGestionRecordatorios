@@ -21,9 +21,6 @@ export function useTasks(user) {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setTasks(data);
 
-      // Solo mostrar loading en la primera carga
-      // Las actualizaciones posteriores (guardar, editar, eliminar)
-      // no deben volver a mostrar la pantalla de carga
       if (!initialLoadDone.current) {
         initialLoadDone.current = true;
         setIsLoadingTasks(false);
@@ -39,13 +36,14 @@ export function useTasks(user) {
     };
   }, [user]);
 
-  const addTask = async (task) => {
+  const addTask = async (task, userEmail) => {
     if (!user) return false;
     const taskId = task.id || crypto.randomUUID();
     const taskData = {
       ...task,
       id: taskId,
-      createdAt: task.createdAt || new Date().toISOString()
+      createdAt: task.createdAt || new Date().toISOString(),
+      createdBy: task.createdBy || userEmail || user.email || '—',
     };
     try {
       await setDoc(
