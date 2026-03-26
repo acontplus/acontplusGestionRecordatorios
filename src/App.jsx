@@ -3,6 +3,7 @@ import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { useTasks } from './hooks/useTasks';
 import { useNotifications } from './hooks/useNotifications';
+import { useClients } from './hooks/useClients';
 import Login from './components/Login.jsx';
 import NavItem from './components/NavItem.jsx';
 import Dashboard from './components/Dashboard.jsx';
@@ -24,6 +25,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted } = useTasks(user);
+  const { clients, saveClient } = useClients(user);
   const {
     permission: notificationPermission,
     requestPermission: requestNotifications,
@@ -54,6 +56,10 @@ export default function App() {
   }, []);
 
   const handleAddTask = async (task) => {
+    // Guardar cliente si tiene identificación y nombre
+    if (task.identification && task.clientName) {
+      await saveClient(task);
+    }
     const success = await addTask(task, user.email);
     if (success !== false) {
       setActiveTab('list');
@@ -162,7 +168,7 @@ export default function App() {
                   ? 'text-blue-600 bg-blue-50'
                   : 'text-slate-400 bg-slate-100'
               }`}
-              title={notificationPermission === 'granted' ? 'Alertas del sistema activadas' : 'Activar alertas del sistema'}
+              title={notificationPermission === 'granted' ? 'Alertas activadas' : 'Activar alertas'}
             >
               {notificationPermission === 'granted' ? <BellOff size={20} /> : <BellOff size={20} />}
             </button>
@@ -205,6 +211,7 @@ export default function App() {
             urgencies={URGENCIES}
             statuses={STATUSES}
             onCancel={() => setActiveTab('list')}
+            clients={clients}
           />
         )}
         {activeTab === 'reports' && (
