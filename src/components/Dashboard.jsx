@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle, Clock, Calendar, Bell, BellOff, CheckCircle, Phone, MapPin, Wrench, X, FileText, User } from 'lucide-react';
 import StatCard from './StatCard.jsx';
+import Pagination from './Pagination.jsx';
+import { usePagination } from '../hooks/usePagination.js';
 
 export default function Dashboard({ tasks, onNavigate, notificationPermission, onRequestNotifications, onShowAlerts, user }) {
   const [activeFilter, setActiveFilter] = useState(null);
@@ -12,7 +14,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
   const overdueTasks = pendingTasks.filter(t => t.dueDate < today);
   const alertTasks = [...new Map([...overdueTasks, ...urgentTasks, ...dueTodayTasks].map(t => [t.id, t])).values()];
 
-  const filteredTasks = () => {
+  const getFilteredTasks = () => {
     switch (activeFilter) {
       case 'pendientes': return pendingTasks;
       case 'urgentes':   return urgentTasks;
@@ -31,12 +33,14 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
 
   const handleFilter = (filter) => {
     setActiveFilter(prev => prev === filter ? null : filter);
+    pagination.resetPage();
   };
+
+  const pagination = usePagination(getFilteredTasks(), 5);
 
   const formatDate = (isoString) => {
     if (!isoString) return '—';
-    const date = new Date(isoString);
-    return date.toLocaleDateString('es-EC', {
+    return new Date(isoString).toLocaleDateString('es-EC', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
@@ -110,14 +114,14 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
             <h3 className="text-lg font-semibold text-slate-800">
               {activeFilter ? filterLabels[activeFilter] : 'Urgentes / Atrasados / Hoy'}
             </h3>
-            {filteredTasks().length > 0 && (
+            {getFilteredTasks().length > 0 && (
               <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded-full">
-                {filteredTasks().length}
+                {getFilteredTasks().length}
               </span>
             )}
             {activeFilter && (
               <button
-                onClick={() => setActiveFilter(null)}
+                onClick={() => { setActiveFilter(null); pagination.resetPage(); }}
                 className="flex items-center space-x-1 text-xs text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors"
               >
                 <X size={12} /><span>Limpiar filtro</span>
@@ -130,7 +134,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
         </div>
 
         <div className="space-y-3">
-          {filteredTasks().map(task => {
+          {pagination.paginatedItems.map(task => {
             const isOverdue = task.dueDate < today;
             const isToday = task.dueDate === today;
 
@@ -144,7 +148,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   'bg-yellow-50 border-yellow-200'
                 }`}
               >
-                {/* Fila superior — nombre + badges */}
+                {/* Fila superior */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-2">
                     <div className={`p-1.5 rounded-full flex-shrink-0 ${
@@ -153,9 +157,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                       activeFilter === 'pendientes' ? 'bg-slate-100 text-slate-600' :
                       'bg-yellow-100 text-yellow-600'
                     }`}>
-                      {isOverdue ? <AlertCircle size={16} /> :
-                       isToday ? <Calendar size={16} /> :
-                       <Clock size={16} />}
+                      {isOverdue ? <AlertCircle size={16} /> : isToday ? <Calendar size={16} /> : <Clock size={16} />}
                     </div>
                     <div>
                       <p className="font-bold text-slate-800 text-sm">{task.clientName}</p>
@@ -173,12 +175,11 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   </div>
                 </div>
 
-                {/* Orden de servicio — destacada */}
+                {/* Orden de servicio */}
                 {task.serviceOrder && (
                   <div className="mb-3">
                     <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-mono font-bold tracking-wider border border-purple-200">
-                      <FileText size={12} />
-                      <span>OS: {task.serviceOrder}</span>
+                      <FileText size={12} /><span>OS: {task.serviceOrder}</span>
                     </span>
                   </div>
                 )}
@@ -203,15 +204,11 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                       <span className="truncate">{task.clientAddress}</span>
                     </div>
                   )}
-
-                  {/* Fecha de vencimiento — destacada */}
                   <div className="flex items-center space-x-1.5 md:col-span-2">
                     <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-semibold border ${
-                      isOverdue
-                        ? 'bg-red-100 text-red-700 border-red-300'
-                        : isToday
-                        ? 'bg-blue-100 text-blue-700 border-blue-300'
-                        : 'bg-orange-100 text-orange-700 border-orange-300'
+                      isOverdue ? 'bg-red-100 text-red-700 border-red-300' :
+                      isToday ? 'bg-blue-100 text-blue-700 border-blue-300' :
+                      'bg-orange-100 text-orange-700 border-orange-300'
                     }`}>
                       <Calendar size={12} />
                       <span>Vence: {task.dueDate}{isOverdue ? ' — ATRASADO' : isToday ? ' — HOY' : ''}</span>
@@ -226,7 +223,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   </div>
                 )}
 
-                {/* Footer — fecha creación y usuario */}
+                {/* Footer */}
                 <div className="mt-3 pt-2 border-t border-slate-200 border-opacity-60 flex items-center justify-between">
                   <div className="flex items-center space-x-1 text-xs text-slate-400">
                     <Clock size={11} />
@@ -241,13 +238,23 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
             );
           })}
 
-          {filteredTasks().length === 0 && (
+          {getFilteredTasks().length === 0 && (
             <div className="text-center py-8 text-slate-400">
               <CheckCircle className="mx-auto mb-2 opacity-50" size={32} />
               <p>No hay tareas en esta categoría.</p>
             </div>
           )}
         </div>
+
+        {/* Paginación */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.goToPage}
+          startIndex={pagination.startIndex}
+          endIndex={pagination.endIndex}
+          totalItems={pagination.totalItems}
+        />
       </div>
     </div>
   );

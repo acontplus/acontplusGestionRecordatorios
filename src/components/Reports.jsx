@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Filter, X, ChevronDown, ChevronUp, Download, FileText, Search } from 'lucide-react';
+import Pagination from './Pagination.jsx';
+import { usePagination } from '../hooks/usePagination.js';
 
 const INITIAL_FILTERS = {
   search: '',
@@ -15,22 +17,10 @@ const INITIAL_FILTERS = {
 
 function exportToCSV(tasks) {
   const headers = [
-    'Orden de Servicio',
-    'Cliente',
-    'Cédula/RUC',
-    'Teléfono',
-    'Dirección',
-    'Equipo',
-    'Tipo',
-    'Urgencia',
-    'Estado',
-    'Fecha Vencimiento',
-    'Observaciones',
-    'Creado Por',
-    'Fecha Creación',
-    'Completado Por',
-    'Fecha Completado',
-    'Obs. Cierre',
+    'Orden de Servicio', 'Cliente', 'Cédula/RUC', 'Teléfono', 'Dirección',
+    'Equipo', 'Tipo', 'Urgencia', 'Estado', 'Fecha Vencimiento',
+    'Observaciones', 'Creado Por', 'Fecha Creación',
+    'Completado Por', 'Fecha Completado', 'Obs. Cierre',
   ];
 
   const rows = tasks.map(t => [
@@ -133,9 +123,13 @@ export default function Reports({ tasks }) {
 
   const handleFilter = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    reportPagination.resetPage();
   };
 
-  const clearFilters = () => setFilters(INITIAL_FILTERS);
+  const clearFilters = () => {
+    setFilters(INITIAL_FILTERS);
+    reportPagination.resetPage();
+  };
 
   const activeFilterCount = Object.entries(filters).filter(([key, val]) =>
     key === 'status' || key === 'urgency' ? val !== 'Todos' : val !== ''
@@ -167,6 +161,8 @@ export default function Reports({ tasks }) {
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [tasks, filters]);
 
+  const reportPagination = usePagination(filteredTasks, 15);
+
   return (
     <div className="space-y-6">
 
@@ -174,7 +170,9 @@ export default function Reports({ tasks }) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Reportes</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{filteredTasks.length} de {tasks.length} registros</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {filteredTasks.length} de {tasks.length} registros
+          </p>
         </div>
 
         {/* Botón exportar */}
@@ -268,32 +266,22 @@ export default function Reports({ tasks }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Orden de servicio</label>
               <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Ej: OS-2026-001"
-                  value={filters.serviceOrder}
+                <input type="text" placeholder="Ej: OS-2026-001" value={filters.serviceOrder}
                   onChange={(e) => handleFilter('serviceOrder', e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                />
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
                 {filters.serviceOrder && (
-                  <button onClick={() => handleFilter('serviceOrder', '')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X size={14} />
-                  </button>
+                  <button onClick={() => handleFilter('serviceOrder', '')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14} /></button>
                 )}
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
-              <select
-                value={filters.status}
-                onChange={(e) => handleFilter('status', e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
+              <select value={filters.status} onChange={(e) => handleFilter('status', e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                 <option value="Todos">Todos los estados</option>
                 <option value="Pendiente">Pendiente</option>
                 <option value="En Proceso">En Proceso</option>
@@ -304,11 +292,8 @@ export default function Reports({ tasks }) {
 
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Urgencia</label>
-              <select
-                value={filters.urgency}
-                onChange={(e) => handleFilter('urgency', e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
+              <select value={filters.urgency} onChange={(e) => handleFilter('urgency', e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                 <option value="Todos">Todas las urgencias</option>
                 <option value="Alta">Alta</option>
                 <option value="Media">Media</option>
@@ -318,11 +303,8 @@ export default function Reports({ tasks }) {
 
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Usuario</label>
-              <select
-                value={filters.createdBy}
-                onChange={(e) => handleFilter('createdBy', e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
+              <select value={filters.createdBy} onChange={(e) => handleFilter('createdBy', e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                 <option value="">Todos los usuarios</option>
                 {uniqueUsers.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
@@ -439,7 +421,7 @@ export default function Reports({ tasks }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTasks.map(task => {
+              {reportPagination.paginatedItems.map(task => {
                 const today = new Date().toISOString().split('T')[0];
                 const isOverdue = task.dueDate < today && task.status !== 'Completado' && task.status !== 'Cancelado';
                 return (
@@ -456,11 +438,9 @@ export default function Reports({ tasks }) {
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{task.type}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
-                        isOverdue
-                          ? 'bg-red-100 text-red-700'
-                          : task.dueDate === today
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-orange-100 text-orange-700'
+                        isOverdue ? 'bg-red-100 text-red-700' :
+                        task.dueDate === today ? 'bg-blue-100 text-blue-700' :
+                        'bg-orange-100 text-orange-700'
                       }`}>
                         {task.dueDate}
                         {isOverdue && ' ⚠️'}
@@ -518,6 +498,18 @@ export default function Reports({ tasks }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Paginación */}
+        <div className="px-4 pb-4">
+          <Pagination
+            currentPage={reportPagination.currentPage}
+            totalPages={reportPagination.totalPages}
+            onPageChange={reportPagination.goToPage}
+            startIndex={reportPagination.startIndex}
+            endIndex={reportPagination.endIndex}
+            totalItems={reportPagination.totalItems}
+          />
         </div>
       </div>
     </div>
