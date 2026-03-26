@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, CheckCircle, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import TaskCard from './TaskCard.jsx';
+import CompleteModal from './CompleteModal.jsx';
 
 const INITIAL_FILTERS = {
   search: '',
@@ -13,9 +14,10 @@ const INITIAL_FILTERS = {
   dueDateTo: '',
 };
 
-export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
+export default function TaskList({ tasks, onEdit, onDelete, onComplete, user }) {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
+  const [completingTask, setCompletingTask] = useState(null);
 
   const handleFilter = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -27,7 +29,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
     key === 'status' ? val !== 'Todos' : val !== ''
   ).length;
 
-  // Usuarios únicos para el select
   const uniqueUsers = useMemo(() => {
     const users = tasks.map(t => t.createdBy).filter(Boolean);
     return [...new Set(users)];
@@ -35,40 +36,20 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      // Búsqueda general por cliente
-      if (filters.search && !task.clientName?.toLowerCase().includes(filters.search.toLowerCase())) {
-        return false;
-      }
-      // Orden de servicio
-      if (filters.serviceOrder && !task.serviceOrder?.toLowerCase().includes(filters.serviceOrder.toLowerCase())) {
-        return false;
-      }
-      // Estado
-      if (filters.status !== 'Todos' && task.status !== filters.status) {
-        return false;
-      }
-      // Usuario creador
-      if (filters.createdBy && task.createdBy !== filters.createdBy) {
-        return false;
-      }
-      // Fecha de creación desde
+      if (filters.search && !task.clientName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      if (filters.serviceOrder && !task.serviceOrder?.toLowerCase().includes(filters.serviceOrder.toLowerCase())) return false;
+      if (filters.status !== 'Todos' && task.status !== filters.status) return false;
+      if (filters.createdBy && task.createdBy !== filters.createdBy) return false;
       if (filters.dateFrom) {
         const created = task.createdAt?.split('T')[0];
         if (!created || created < filters.dateFrom) return false;
       }
-      // Fecha de creación hasta
       if (filters.dateTo) {
         const created = task.createdAt?.split('T')[0];
         if (!created || created > filters.dateTo) return false;
       }
-      // Fecha de vencimiento desde
-      if (filters.dueDateFrom && task.dueDate < filters.dueDateFrom) {
-        return false;
-      }
-      // Fecha de vencimiento hasta
-      if (filters.dueDateTo && task.dueDate > filters.dueDateTo) {
-        return false;
-      }
+      if (filters.dueDateFrom && task.dueDate < filters.dueDateFrom) return false;
+      if (filters.dueDateTo && task.dueDate > filters.dueDateTo) return false;
       return true;
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [tasks, filters]);
@@ -121,7 +102,7 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
         </button>
       </div>
 
-      {/* Panel de filtros expandible */}
+      {/* Panel de filtros */}
       {showFilters && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
           <div className="flex justify-between items-center">
@@ -137,8 +118,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-            {/* Orden de servicio */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Orden de servicio</label>
               <div className="relative">
@@ -157,7 +136,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               </div>
             </div>
 
-            {/* Estado */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
               <select
@@ -173,7 +151,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               </select>
             </div>
 
-            {/* Usuario */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Usuario</label>
               <select
@@ -188,7 +165,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               </select>
             </div>
 
-            {/* Fecha de creación desde */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Creado desde</label>
               <div className="relative">
@@ -206,7 +182,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               </div>
             </div>
 
-            {/* Fecha de creación hasta */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Creado hasta</label>
               <div className="relative">
@@ -224,7 +199,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               </div>
             </div>
 
-            {/* Fecha de vencimiento desde */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Vence desde</label>
               <div className="relative">
@@ -242,7 +216,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               </div>
             </div>
 
-            {/* Fecha de vencimiento hasta */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Vence hasta</label>
               <div className="relative">
@@ -323,7 +296,7 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
               task={task}
               onEdit={() => onEdit(task)}
               onDelete={() => onDelete(task.id)}
-              onComplete={() => onComplete(task.id)}
+              onComplete={() => setCompletingTask(task)}
             />
           ))}
           {pendingTasks.length === 0 && (
@@ -348,11 +321,24 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete }) {
                 task={task}
                 onEdit={() => onEdit(task)}
                 onDelete={() => onDelete(task.id)}
-                onComplete={() => onComplete(task.id)}
+                onComplete={() => setCompletingTask(task)}
               />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Modal de confirmación */}
+      {completingTask && (
+        <CompleteModal
+          task={completingTask}
+          user={user}
+          onConfirm={async (completionData) => {
+            await onComplete(completingTask.id, completionData);
+            setCompletingTask(null);
+          }}
+          onCancel={() => setCompletingTask(null)}
+        />
       )}
     </div>
   );

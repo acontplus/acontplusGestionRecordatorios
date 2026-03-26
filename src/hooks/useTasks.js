@@ -20,7 +20,6 @@ export function useTasks(user) {
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setTasks(data);
-
       if (!initialLoadDone.current) {
         initialLoadDone.current = true;
         setIsLoadingTasks(false);
@@ -68,14 +67,20 @@ export function useTasks(user) {
     }
   };
 
-  const markAsCompleted = async (id) => {
+  const markAsCompleted = async (id, completionData) => {
     if (!user) return;
     const taskToUpdate = tasks.find(t => t.id === id);
     if (!taskToUpdate) return;
     try {
       await setDoc(
         doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', id),
-        { ...taskToUpdate, status: 'Completado' }
+        {
+          ...taskToUpdate,
+          status: 'Completado',
+          completionObservations: completionData.completionObservations,
+          completedAt: completionData.completedAt,
+          completedBy: completionData.completedBy,
+        }
       );
     } catch (error) {
       console.error("Error al completar:", error);

@@ -34,7 +34,7 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
         </span>
       </div>
 
-      {/* Orden de servicio — destacada en púrpura */}
+      {/* Orden de servicio */}
       {task.serviceOrder && (
         <div className="mb-3">
           <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-mono font-bold tracking-wider border border-purple-200">
@@ -65,7 +65,7 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
           </div>
         )}
 
-        {/* Fecha de vencimiento — destacada */}
+        {/* Fecha de vencimiento destacada */}
         <div className="flex items-center">
           <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-semibold border ${
             isOverdue
@@ -90,31 +90,66 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
         )}
       </div>
 
-      {/* Footer — fecha creación y usuario */}
-      <div className="py-2 border-t border-b border-slate-100 mb-3 flex items-center justify-between">
-        <div className="flex items-center space-x-1 text-xs text-slate-400">
-          <Clock size={11} />
-          <span>{formatDate(task.createdAt)}</span>
+      {/* Footer — fecha creación, usuario y datos de cierre */}
+      <div className="py-2 border-t border-b border-slate-100 mb-3 space-y-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-1 text-xs text-slate-400">
+            <Clock size={11} />
+            <span>{formatDate(task.createdAt)}</span>
+          </div>
+          <div className="flex items-center space-x-1 text-xs text-slate-400">
+            <User size={11} />
+            <span className="truncate max-w-32">{task.createdBy || '—'}</span>
+          </div>
         </div>
-        <div className="flex items-center space-x-1 text-xs text-slate-400">
-          <User size={11} />
-          <span className="truncate max-w-32">{task.createdBy || '—'}</span>
-        </div>
+
+        {/* Datos de cierre */}
+        {task.status === 'Completado' && task.completedAt && (
+          <div className="mt-1 pt-1 border-t border-slate-100 space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1 text-xs text-green-600">
+                <CheckCircle size={11} />
+                <span>Completado: {formatDate(task.completedAt)}</span>
+              </div>
+              <div className="flex items-center space-x-1 text-xs text-green-600">
+                <User size={11} />
+                <span className="truncate max-w-32">{task.completedBy || '—'}</span>
+              </div>
+            </div>
+            {task.completionObservations && (
+              <div className="p-2 bg-green-50 rounded-lg border border-green-100">
+                <p className="text-xs text-green-700">✅ {task.completionObservations}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Acciones */}
       <div className="flex justify-between items-center">
         <div className="flex space-x-2">
-          <button onClick={onEdit} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
+          <button
+            onClick={onEdit}
+            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Editar"
+          >
             <Edit size={18} />
           </button>
-          <button onClick={onDelete} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+          <button
+            onClick={onDelete}
+            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Eliminar"
+          >
             <Trash2 size={18} />
           </button>
         </div>
         {task.status !== 'Completado' && task.status !== 'Cancelado' && (
-          <button onClick={onComplete} className="flex items-center space-x-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 font-medium text-sm rounded-lg transition-colors">
-            <CheckCircle size={16} /><span>Completar</span>
+          <button
+            onClick={onComplete}
+            className="flex items-center space-x-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 font-medium text-sm rounded-lg transition-colors"
+          >
+            <CheckCircle size={16} />
+            <span>Completar</span>
           </button>
         )}
       </div>

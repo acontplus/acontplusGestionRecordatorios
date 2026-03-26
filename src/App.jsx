@@ -56,7 +56,6 @@ export default function App() {
   }, []);
 
   const handleAddTask = async (task) => {
-    // Guardar cliente si tiene identificación y nombre
     if (task.identification && task.clientName) {
       await saveClient(task);
     }
@@ -201,6 +200,7 @@ export default function App() {
             onEdit={handleEdit}
             onDelete={deleteTask}
             onComplete={markAsCompleted}
+            user={user}
           />
         )}
         {activeTab === 'form' && (
