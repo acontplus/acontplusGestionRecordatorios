@@ -61,31 +61,44 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
     onSubmit(formData);
   };
 
+  const inputClass = "w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors";
+  const labelClass = "block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide";
+
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">
-        {initialData ? 'Editar Registro' : 'Nuevo Recordatorio'}
-      </h2>
-      <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+      {/* Header con marca */}
+      <div className="px-6 py-4 text-white" style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+        <h2 className="text-lg font-bold">
+          {initialData ? '✏️ Editar Registro' : '➕ Nuevo Recordatorio'}
+        </h2>
+        <p className="text-xs text-white text-opacity-80 mt-0.5">
+          {initialData ? 'Modifica los datos del mantenimiento' : 'Registra un nuevo mantenimiento'}
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
         {/* Orden de servicio */}
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            <FileText size={14} className="inline mr-1" />Orden de Servicio
+          <label className={labelClass}>
+            <FileText size={12} className="inline mr-1" />Orden de Servicio
           </label>
           <input
             name="serviceOrder"
             value={formData.serviceOrder}
             onChange={handleChange}
             placeholder="Ej: OS-2026-001"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono tracking-wide"
+            className={`${inputClass} font-mono tracking-wide`}
+            onFocus={e => e.target.style.borderColor = '#D61672'}
+            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
           />
         </div>
 
         {/* Buscador de cliente */}
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            <User size={14} className="inline mr-1" />Cliente
+          <label className={labelClass}>
+            <User size={12} className="inline mr-1" />Cliente
           </label>
           <ClientSearch
             clients={clients}
@@ -95,31 +108,32 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
           />
         </div>
 
-        {/* Campos del cliente — visibles solo si no hay cliente seleccionado */}
+        {/* Campos nuevo cliente */}
         {!selectedClient && (
-          <div className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          <div className="space-y-4 p-4 bg-pink-50 rounded-xl border border-pink-100">
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#D61672' }}>
               Datos del nuevo cliente
             </p>
 
-            {/* Cédula / RUC */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                <CreditCard size={14} className="inline mr-1" />Cédula / RUC
+              <label className={labelClass}>
+                <CreditCard size={12} className="inline mr-1" />Cédula / RUC
               </label>
               <input
                 name="identification"
                 value={formData.identification}
                 onChange={handleChange}
-                placeholder="Ej: 0912345678 o 0912345678001"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                placeholder="Ej: 0912345678"
+                className={`${inputClass} font-mono`}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  <User size={14} className="inline mr-1" />Nombre
+                <label className={labelClass}>
+                  <User size={12} className="inline mr-1" />Nombre
                 </label>
                 <input
                   name="clientName"
@@ -127,33 +141,39 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
                   onChange={handleChange}
                   required
                   placeholder="Nombre completo"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={inputClass}
+                  onFocus={e => e.target.style.borderColor = '#D61672'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  <Phone size={14} className="inline mr-1" />Teléfono
+                <label className={labelClass}>
+                  <Phone size={12} className="inline mr-1" />Teléfono
                 </label>
                 <input
                   name="clientPhone"
                   value={formData.clientPhone}
                   onChange={handleChange}
                   placeholder="Número de contacto"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={inputClass}
+                  onFocus={e => e.target.style.borderColor = '#D61672'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                <MapPin size={14} className="inline mr-1" />Dirección
+              <label className={labelClass}>
+                <MapPin size={12} className="inline mr-1" />Dirección
               </label>
               <input
                 name="clientAddress"
                 value={formData.clientAddress}
                 onChange={handleChange}
                 placeholder="Dirección del cliente"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
               />
             </div>
           </div>
@@ -161,49 +181,57 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
 
         {/* Equipo */}
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            <Wrench size={14} className="inline mr-1" />Equipo
+          <label className={labelClass}>
+            <Wrench size={12} className="inline mr-1" />Equipo
           </label>
           <input
             name="equipment"
             value={formData.equipment}
             onChange={handleChange}
             placeholder="Modelo o descripción del equipo"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
+            onFocus={e => e.target.style.borderColor = '#D61672'}
+            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
           />
         </div>
 
         {/* Tipo, Urgencia, Estado */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Tipo</label>
+            <label className={labelClass}>Tipo</label>
             <select
               name="type"
               value={formData.type}
               onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className={`${inputClass} bg-white`}
+              onFocus={e => e.target.style.borderColor = '#D61672'}
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
             >
               {types.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Urgencia</label>
+            <label className={labelClass}>Urgencia</label>
             <select
               name="urgency"
               value={formData.urgency}
               onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className={`${inputClass} bg-white`}
+              onFocus={e => e.target.style.borderColor = '#D61672'}
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
             >
               {urgencies.map(u => <option key={u}>{u}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Estado</label>
+            <label className={labelClass}>Estado</label>
             <select
               name="status"
               value={formData.status}
               onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className={`${inputClass} bg-white`}
+              onFocus={e => e.target.style.borderColor = '#D61672'}
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
             >
               {statuses.map(s => <option key={s}>{s}</option>)}
             </select>
@@ -212,8 +240,8 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
 
         {/* Fecha límite */}
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            <Calendar size={14} className="inline mr-1" />Fecha límite
+          <label className={labelClass}>
+            <Calendar size={12} className="inline mr-1" />Fecha límite
           </label>
           <input
             type="date"
@@ -221,20 +249,24 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
             value={formData.dueDate}
             onChange={handleChange}
             required
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputClass}
+            onFocus={e => e.target.style.borderColor = '#D61672'}
+            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
           />
         </div>
 
         {/* Observaciones */}
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Observaciones</label>
+          <label className={labelClass}>Observaciones</label>
           <textarea
             name="observations"
             value={formData.observations}
             onChange={handleChange}
             rows={3}
             placeholder="Notas adicionales..."
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className={`${inputClass} resize-none`}
+            onFocus={e => e.target.style.borderColor = '#D61672'}
+            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
           />
         </div>
 
@@ -242,7 +274,8 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
         <div className="flex space-x-3 pt-2">
           <button
             type="submit"
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors"
+            className="flex-1 text-white font-bold py-3 rounded-xl transition-all shadow-md text-sm"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
           >
             {initialData ? 'Actualizar Registro' : 'Guardar Recordatorio'}
           </button>
@@ -250,7 +283,7 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg transition-colors"
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl transition-colors text-sm"
             >
               Cancelar
             </button>

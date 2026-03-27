@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { Droplet } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -23,58 +22,89 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 w-full max-w-sm">
-        
-        <div className="flex items-center justify-center space-x-2 text-blue-600 mb-8">
-          <Droplet size={36} />
-          <h1 className="text-2xl font-bold">AquaGestor</h1>
+    <div className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: 'linear-gradient(135deg, #D61672 0%, #a8105a 50%, #7a0c42 100%)' }}>
+
+      {/* Card */}
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+        {/* Header con logo */}
+        <div className="px-8 pt-10 pb-6 text-center"
+          style={{ background: 'linear-gradient(180deg, #fff8fb 0%, #ffffff 100%)' }}>
+          <img
+            src="/logo.png"
+            alt="Acontplus"
+            className="w-20 h-20 mx-auto mb-4 object-contain"
+          />
+          <h1 className="text-2xl font-bold" style={{ color: '#D61672' }}>
+            ACONTPLUS
+          </h1>
+          <p className="text-sm font-medium mt-0.5" style={{ color: '#FFA901' }}>
+            Recordatorios
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Facturar nunca fue tan fácil
+          </p>
         </div>
 
-        <h2 className="text-lg font-semibold text-slate-700 mb-6 text-center">
-          Iniciar sesión
-        </h2>
+        {/* Formulario */}
+        <div className="px-8 pb-8">
+          <h2 className="text-base font-semibold text-slate-700 mb-5 text-center">
+            Iniciar sesión
+          </h2>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="tu@email.com"
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
+                style={{ '--tw-ring-color': '#D61672' }}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                placeholder="tu@email.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
+                Contraseña
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                placeholder="••••••••"
+                onKeyDown={e => e.key === 'Enter' && handleSubmit(e)}
+              />
+            </div>
+
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-xl border border-red-100">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !email || !password}
+              className="w-full text-white font-bold py-3 rounded-xl transition-all text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}
+            >
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </button>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {error}
-            </p>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !email || !password}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg transition-colors"
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
+          <p className="text-center text-xs text-slate-400 mt-6">
+            Acontplus © {new Date().getFullYear()}
+          </p>
         </div>
       </div>
     </div>

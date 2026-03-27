@@ -1,4 +1,5 @@
-import { Phone, MapPin, Calendar, Edit, Trash2, CheckCircle, FileText, Wrench, Clock, User } from 'lucide-react';
+import { Phone, MapPin, Calendar, Edit, Trash2, CheckCircle, FileText, Wrench, Clock, User, Printer, MessageCircle } from 'lucide-react';
+import { printTaskPDF, shareViaWhatsApp } from './TaskPDF.jsx';
 
 const statusColors = {
   'Pendiente':  'bg-yellow-100 text-yellow-700',
@@ -13,8 +14,7 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
 
   const formatDate = (isoString) => {
     if (!isoString) return '—';
-    const date = new Date(isoString);
-    return date.toLocaleDateString('es-EC', {
+    return new Date(isoString).toLocaleDateString('es-EC', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
@@ -127,7 +127,8 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
 
       {/* Acciones */}
       <div className="flex justify-between items-center">
-        <div className="flex space-x-2">
+        <div className="flex space-x-1">
+          {/* Editar */}
           <button
             onClick={onEdit}
             className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -135,6 +136,7 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
           >
             <Edit size={18} />
           </button>
+          {/* Eliminar */}
           <button
             onClick={onDelete}
             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -142,7 +144,25 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete }) {
           >
             <Trash2 size={18} />
           </button>
+          {/* Imprimir PDF */}
+          <button
+            onClick={() => printTaskPDF(task)}
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="Imprimir / Guardar PDF"
+          >
+            <Printer size={18} />
+          </button>
+          {/* WhatsApp */}
+          <button
+            onClick={() => shareViaWhatsApp(task)}
+            className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+            title="Enviar por WhatsApp"
+          >
+            <MessageCircle size={18} />
+          </button>
         </div>
+
+        {/* Completar */}
         {task.status !== 'Completado' && task.status !== 'Cancelado' && (
           <button
             onClick={onComplete}

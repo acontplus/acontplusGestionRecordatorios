@@ -1,27 +1,55 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// Detecta si el navegador es móvil
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// Función para mostrar notificación compatible con móvil y desktop
-async function showNotification(title, body, icon) {
+async function showSystemNotification(title, body, icon) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
   try {
     if (isMobile && 'serviceWorker' in navigator) {
-      // Android requiere Service Worker para mostrar notificaciones
       const registration = await navigator.serviceWorker.ready;
       await registration.showNotification(title, { body, icon });
     } else {
-      // Desktop — usa el constructor directo
       new Notification(title, { body, icon });
     }
   } catch (err) {
-    // Si falla la notificación del sistema, no romper la app
     console.warn('Notificación del sistema no disponible:', err.message);
   }
 }
+
+const buildToast = (task, index) => {
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = task.dueDate < today;
+  const isDueToday = task.dueDate === today;
+
+  let type = 'urgent';
+  let title = '';
+  let body = '';
+
+  if (isOverdue) {
+    type = 'overdue';
+    title = '⚠️ Tarea atrasada';
+    body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
+  } else if (isDueToday) {
+    type = 'today';
+    title = '📅 Tarea para hoy';
+    body = `${task.clientName} — ${task.type}`;
+  } else {
+    type = 'urgent';
+    title = '🔴 Tarea urgente';
+    body = `${task.clientName} — ${task.type} (${task.dueDate})`;
+  }
+
+  return {
+    id: `${task.id}-${Date.now()}-${index}`,
+    type,
+    title,
+    body,
+    observations: task.observations || '',
+    task,
+  };
+};
 
 export function useNotifications(tasks) {
   const [permission, setPermission] = useState(
@@ -44,38 +72,6 @@ export function useNotifications(tasks) {
     return result;
   };
 
-  const buildToast = (task, index) => {
-    const today = new Date().toISOString().split('T')[0];
-    const isOverdue = task.dueDate < today;
-    const isDueToday = task.dueDate === today;
-
-    let type = 'urgent';
-    let title = '';
-    let body = '';
-
-    if (isOverdue) {
-      type = 'overdue';
-      title = '⚠️ Tarea atrasada';
-      body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
-    } else if (isDueToday) {
-      type = 'today';
-      title = '📅 Tarea para hoy';
-      body = `${task.clientName} — ${task.type}`;
-    } else {
-      type = 'urgent';
-      title = '🔴 Tarea urgente';
-      body = `${task.clientName} — ${task.type} (${task.dueDate})`;
-    }
-
-    return {
-      id: `${task.id}-${Date.now()}-${index}`,
-      type,
-      title,
-      body,
-      observations: task.observations || '',
-    };
-  };
-
   const showAlerts = useCallback(() => {
     const today = new Date().toISOString().split('T')[0];
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
@@ -90,6 +86,7 @@ export function useNotifications(tasks) {
         title: '✅ Todo al día',
         body: 'No hay tareas urgentes ni atrasadas.',
         observations: '',
+        task: null,
       }]);
       return;
     }
@@ -98,6 +95,7 @@ export function useNotifications(tasks) {
     setToasts(newToasts);
   }, [tasks]);
 
+  // Carga inicial automática
   useEffect(() => {
     if (tasks.length === 0) return;
 
@@ -126,7 +124,7 @@ export function useNotifications(tasks) {
 
         // Notificación del sistema con delay escalonado
         setTimeout(() => {
-          showNotification(toast.title, toast.body, '/favicon.svg');
+          showSystemNotification(toast.title, toast.body, '/logo.png');
         }, index * 800);
       });
 
@@ -147,7 +145,7 @@ export function useNotifications(tasks) {
 
       const toast = buildToast(task, index);
       setToasts(prev => [...prev, toast]);
-      showNotification(toast.title, toast.body, '/favicon.svg');
+      showSystemNotification(toast.title, toast.body, '/logo.png');
     });
   }, [tasks, permission]);
 

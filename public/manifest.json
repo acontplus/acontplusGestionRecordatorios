@@ -1,17 +1,17 @@
 {
-  "name": "AquaGestor",
-  "short_name": "AquaGestor",
-  "description": "Gestión de mantenimientos de filtros de agua",
+  "name": "Acontplus Recordatorios",
+  "short_name": "Acontplus",
+  "description": "Gestión de recordatorios de mantenimiento",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#2563eb",
+  "background_color": "#ffffff",
+  "theme_color": "#D61672",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/logo.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

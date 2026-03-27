@@ -11,7 +11,7 @@ import TaskList from './components/TaskList.jsx';
 import TaskForm from './components/TaskForm.jsx';
 import Reports from './components/Reports.jsx';
 import Toast from './components/Toast.jsx';
-import { Home, Wrench, FileText, Plus, Droplet, Bell, BellOff, Cloud, CloudOff, LogOut } from 'lucide-react';
+import { Home, Wrench, FileText, Plus, Bell, BellOff, Cloud, CloudOff, LogOut } from 'lucide-react';
 
 const TASK_TYPES = ['Cambio de Filtro', 'Mantenimiento General', 'Instalación', 'Revisión por Fuga', 'Garantía'];
 const URGENCIES = ['Baja', 'Media', 'Alta'];
@@ -34,7 +34,6 @@ export default function App() {
     showAlerts
   } = useNotifications(tasks);
 
-  // Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -43,7 +42,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Estado de red
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -74,8 +72,8 @@ export default function App() {
   if (isLoading || (isLoadingTasks && tasks.length === 0)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <Droplet size={48} className="text-blue-500 animate-bounce mb-4" />
-        <p className="text-slate-500 font-medium">Cargando...</p>
+        <img src="/logo.png" alt="Acontplus" className="w-20 h-20 object-contain mb-4 animate-bounce" />
+        <p className="text-sm font-semibold" style={{ color: '#D61672' }}>Cargando...</p>
       </div>
     );
   }
@@ -87,39 +85,25 @@ export default function App() {
 
       {/* Navegación */}
       <nav className="fixed bottom-0 w-full bg-white border-t border-slate-200 md:relative md:w-64 md:border-t-0 md:border-r md:h-screen md:flex-shrink-0 z-10">
-        <div className="flex justify-around p-3 md:flex-col md:p-6 md:space-y-4">
-          <div className="hidden md:flex items-center space-x-2 mb-8 text-blue-600">
-            <Droplet size={32} />
-            <h1 className="text-xl font-bold">AquaGestor</h1>
+        <div className="flex justify-around p-3 md:flex-col md:p-6 md:space-y-2">
+
+          {/* Logo desktop */}
+          <div className="hidden md:flex items-center space-x-3 mb-8 px-1">
+            <img src="/logo.png" alt="Acontplus" className="w-10 h-10 object-contain flex-shrink-0" />
+            <div>
+              <h1 className="text-base font-bold leading-tight" style={{ color: '#D61672' }}>ACONTPLUS</h1>
+              <p className="text-xs font-medium" style={{ color: '#FFA901' }}>Recordatorios</p>
+            </div>
           </div>
-          <NavItem
-            icon={<Home />}
-            label="Panel"
-            isActive={activeTab === 'dashboard'}
-            onClick={() => setActiveTab('dashboard')}
-          />
-          <NavItem
-            icon={<Wrench />}
-            label="Mantenimientos"
-            isActive={activeTab === 'list'}
-            onClick={() => setActiveTab('list')}
-          />
-          <NavItem
-            icon={<Plus />}
-            label="Nuevo"
-            isActive={activeTab === 'form'}
-            onClick={() => { setEditingTask(null); setActiveTab('form'); }}
-          />
-          <NavItem
-            icon={<FileText />}
-            label="Reportes"
-            isActive={activeTab === 'reports'}
-            onClick={() => setActiveTab('reports')}
-          />
+
+          <NavItem icon={<Home />} label="Panel" isActive={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<Wrench />} label="Mantenimientos" isActive={activeTab === 'list'} onClick={() => setActiveTab('list')} />
+          <NavItem icon={<Plus />} label="Nuevo" isActive={activeTab === 'form'} onClick={() => { setEditingTask(null); setActiveTab('form'); }} />
+          <NavItem icon={<FileText />} label="Reportes" isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
-            <div className="text-xs text-slate-400 mb-2 truncate">{user.email}</div>
+            <div className="text-xs text-slate-400 mb-2 truncate px-2">{user.email}</div>
             <button
               onClick={() => signOut(auth)}
               className="flex items-center space-x-2 text-sm text-slate-500 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors w-full"
@@ -135,13 +119,17 @@ export default function App() {
 
         {/* Cabecera */}
         <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm">
-          <div className="flex items-center space-x-2 text-blue-600 md:hidden">
-            <Droplet size={28} />
-            <h1 className="text-xl font-bold">AquaGestor</h1>
+          {/* Logo mobile */}
+          <div className="flex items-center space-x-2 md:hidden">
+            <img src="/logo.png" alt="Acontplus" className="w-8 h-8 object-contain" />
+            <div>
+              <h1 className="text-sm font-bold leading-tight" style={{ color: '#D61672' }}>ACONTPLUS</h1>
+              <p className="text-xs font-medium" style={{ color: '#FFA901' }}>Recordatorios</p>
+            </div>
           </div>
           <div className="hidden md:flex flex-1"></div>
-          <div className="flex items-center space-x-3">
 
+          <div className="flex items-center space-x-3">
             {/* Estado de red */}
             <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
               isOnline ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
@@ -150,26 +138,26 @@ export default function App() {
               <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
             </div>
 
-            {/* Botón ver alertas mobile */}
+            {/* Ver alertas mobile */}
             <button
               onClick={showAlerts}
-              className="p-2 rounded-full transition-colors md:hidden text-red-500 bg-red-50 hover:bg-red-100"
+              className="p-2 rounded-full transition-colors md:hidden"
+              style={{ color: '#D61672', backgroundColor: '#fff0f7' }}
               title="Ver alertas"
             >
               <Bell size={20} />
             </button>
 
-            {/* Botón notificaciones sistema mobile */}
+            {/* Notificaciones sistema mobile */}
             <button
               onClick={requestNotifications}
               className={`p-2 rounded-full transition-colors md:hidden ${
-                notificationPermission === 'granted'
-                  ? 'text-blue-600 bg-blue-50'
-                  : 'text-slate-400 bg-slate-100'
+                notificationPermission === 'granted' ? 'bg-pink-50' : 'text-slate-400 bg-slate-100'
               }`}
+              style={notificationPermission === 'granted' ? { color: '#D61672' } : {}}
               title={notificationPermission === 'granted' ? 'Alertas activadas' : 'Activar alertas'}
             >
-              {notificationPermission === 'granted' ? <BellOff size={20} /> : <BellOff size={20} />}
+              {notificationPermission === 'granted' ? <Bell size={20} /> : <BellOff size={20} />}
             </button>
 
             {/* Logout mobile */}
@@ -219,7 +207,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Toasts */}
       <Toast toasts={toasts} onClose={removeToast} />
     </div>
   );
