@@ -1,14 +1,16 @@
 @import "tailwindcss";
 
+:root {
+  --brand-primary: #D61672;
+  --brand-secondary: #FFA901;
+  --brand-primary-light: #f9e6f0;
+  --brand-primary-dark: #a8105a;
+  --brand-secondary-light: #fff8e6;
+}
+
 @keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 .animate-slide-in {

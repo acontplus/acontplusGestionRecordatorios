@@ -11,10 +11,12 @@ import TaskList from './components/TaskList.jsx';
 import TaskForm from './components/TaskForm.jsx';
 import Reports from './components/Reports.jsx';
 import Toast from './components/Toast.jsx';
-import { Home, Wrench, FileText, Plus, Bell, BellOff, Cloud, CloudOff, LogOut } from 'lucide-react';
+import CalendarView from './components/CalendarView.jsx';
+import {
+  Home, Wrench, FileText, Plus, Bell, BellOff,
+  Cloud, CloudOff, LogOut, CalendarDays
+} from 'lucide-react';
 
-const TASK_TYPES = ['Cambio de Filtro', 'Mantenimiento General', 'Instalación', 'Revisión por Fuga', 'Garantía'];
-const URGENCIES = ['Baja', 'Media', 'Alta'];
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 export default function App() {
@@ -34,6 +36,7 @@ export default function App() {
     showAlerts
   } = useNotifications(tasks);
 
+  // Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -42,6 +45,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Estado de red
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -85,7 +89,7 @@ export default function App() {
 
       {/* Navegación */}
       <nav className="fixed bottom-0 w-full bg-white border-t border-slate-200 md:relative md:w-64 md:border-t-0 md:border-r md:h-screen md:flex-shrink-0 z-10">
-        <div className="flex justify-around p-3 md:flex-col md:p-6 md:space-y-2">
+        <div className="flex justify-around p-2 md:flex-col md:p-6 md:space-y-2">
 
           {/* Logo desktop */}
           <div className="hidden md:flex items-center space-x-3 mb-8 px-1">
@@ -96,10 +100,36 @@ export default function App() {
             </div>
           </div>
 
-          <NavItem icon={<Home />} label="Panel" isActive={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavItem icon={<Wrench />} label="Mantenimientos" isActive={activeTab === 'list'} onClick={() => setActiveTab('list')} />
-          <NavItem icon={<Plus />} label="Nuevo" isActive={activeTab === 'form'} onClick={() => { setEditingTask(null); setActiveTab('form'); }} />
-          <NavItem icon={<FileText />} label="Reportes" isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
+          <NavItem
+            icon={<Home />}
+            label="Panel"
+            isActive={activeTab === 'dashboard'}
+            onClick={() => setActiveTab('dashboard')}
+          />
+          <NavItem
+            icon={<Wrench />}
+            label="Tareas"
+            isActive={activeTab === 'list'}
+            onClick={() => setActiveTab('list')}
+          />
+          <NavItem
+            icon={<Plus />}
+            label="Nueva"
+            isActive={activeTab === 'form'}
+            onClick={() => { setEditingTask(null); setActiveTab('form'); }}
+          />
+          <NavItem
+            icon={<CalendarDays />}
+            label="Calendario"
+            isActive={activeTab === 'calendar'}
+            onClick={() => setActiveTab('calendar')}
+          />
+          <NavItem
+            icon={<FileText />}
+            label="Reportes"
+            isActive={activeTab === 'reports'}
+            onClick={() => setActiveTab('reports')}
+          />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -119,6 +149,7 @@ export default function App() {
 
         {/* Cabecera */}
         <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm">
+
           {/* Logo mobile */}
           <div className="flex items-center space-x-2 md:hidden">
             <img src="/logo.png" alt="Acontplus" className="w-8 h-8 object-contain" />
@@ -127,9 +158,11 @@ export default function App() {
               <p className="text-xs font-medium" style={{ color: '#FFA901' }}>Recordatorios</p>
             </div>
           </div>
+
           <div className="hidden md:flex flex-1"></div>
 
           <div className="flex items-center space-x-3">
+
             {/* Estado de red */}
             <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
               isOnline ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
@@ -195,18 +228,20 @@ export default function App() {
           <TaskForm
             onSubmit={handleAddTask}
             initialData={editingTask}
-            types={TASK_TYPES}
-            urgencies={URGENCIES}
             statuses={STATUSES}
             onCancel={() => setActiveTab('list')}
             clients={clients}
           />
+        )}
+        {activeTab === 'calendar' && (
+          <CalendarView tasks={tasks} />
         )}
         {activeTab === 'reports' && (
           <Reports tasks={tasks} />
         )}
       </main>
 
+      {/* Toasts */}
       <Toast toasts={toasts} onClose={removeToast} />
     </div>
   );

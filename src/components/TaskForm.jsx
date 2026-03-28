@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Phone, MapPin, Calendar, FileText, Wrench, CreditCard, User } from 'lucide-react';
+import { Phone, MapPin, FileText, CreditCard, User } from 'lucide-react';
 import ClientSearch from './ClientSearch.jsx';
 
-export default function TaskForm({ onSubmit, initialData, types, urgencies, statuses, onCancel, clients }) {
+export default function TaskForm({ onSubmit, initialData, statuses, onCancel, clients }) {
   const [selectedClient, setSelectedClient] = useState(
     initialData?.clientId ? {
       id: initialData.clientId,
@@ -19,13 +19,11 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
     clientName: '',
     clientPhone: '',
     clientAddress: '',
-    equipment: '',
-    type: types[0],
-    urgency: 'Media',
     status: 'Pendiente',
-    dueDate: new Date().toISOString().split('T')[0],
     observations: ''
   });
+
+  const [errors, setErrors] = useState({});
 
   const handleSelectClient = (client) => {
     setSelectedClient(client);
@@ -37,6 +35,7 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
       clientAddress: client.address || '',
       identification: client.identification,
     }));
+    setErrors(prev => ({ ...prev, clientName: null }));
   };
 
   const handleClearClient = () => {
@@ -54,10 +53,24 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.clientName || formData.clientName.trim() === '') {
+      newErrors.clientName = 'Por favor ingresa o selecciona un cliente.';
+    }
+    return newErrors;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const newErrors = validate();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
     onSubmit(formData);
   };
 
@@ -67,13 +80,13 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
-      {/* Header con marca */}
+      {/* Header */}
       <div className="px-6 py-4 text-white" style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
         <h2 className="text-lg font-bold">
-          {initialData ? '✏️ Editar Registro' : '➕ Nuevo Recordatorio'}
+          {initialData ? '✏️ Editar Tarea' : '➕ Nueva Tarea'}
         </h2>
         <p className="text-xs text-white text-opacity-80 mt-0.5">
-          {initialData ? 'Modifica los datos del mantenimiento' : 'Registra un nuevo mantenimiento'}
+          {initialData ? 'Modifica los datos de la tarea' : 'Registra una nueva tarea de mantenimiento'}
         </p>
       </div>
 
@@ -106,6 +119,11 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
             selectedClient={selectedClient}
             onClear={handleClearClient}
           />
+          {errors.clientName && (
+            <p className="text-xs text-red-600 mt-1 flex items-center space-x-1">
+              <span>⚠️</span><span>{errors.clientName}</span>
+            </p>
+          )}
         </div>
 
         {/* Campos nuevo cliente */}
@@ -115,6 +133,7 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
               Datos del nuevo cliente
             </p>
 
+            {/* Cédula / RUC */}
             <div>
               <label className={labelClass}>
                 <CreditCard size={12} className="inline mr-1" />Cédula / RUC
@@ -139,11 +158,10 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
                   name="clientName"
                   value={formData.clientName}
                   onChange={handleChange}
-                  required
                   placeholder="Nombre completo"
-                  className={inputClass}
+                  className={`${inputClass} ${errors.clientName ? 'border-red-400' : ''}`}
                   onFocus={e => e.target.style.borderColor = '#D61672'}
-                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  onBlur={e => e.target.style.borderColor = errors.clientName ? '#f87171' : '#e2e8f0'}
                 />
               </div>
               <div>
@@ -179,91 +197,30 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
           </div>
         )}
 
-        {/* Equipo */}
+        {/* Estado */}
         <div>
-          <label className={labelClass}>
-            <Wrench size={12} className="inline mr-1" />Equipo
-          </label>
-          <input
-            name="equipment"
-            value={formData.equipment}
+          <label className={labelClass}>Estado</label>
+          <select
+            name="status"
+            value={formData.status}
             onChange={handleChange}
-            placeholder="Modelo o descripción del equipo"
-            className={inputClass}
+            className={`${inputClass} bg-white`}
             onFocus={e => e.target.style.borderColor = '#D61672'}
             onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-          />
+          >
+            {statuses.map(s => <option key={s}>{s}</option>)}
+          </select>
         </div>
 
-        {/* Tipo, Urgencia, Estado */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className={labelClass}>Tipo</label>
-            <select
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              className={`${inputClass} bg-white`}
-              onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            >
-              {types.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Urgencia</label>
-            <select
-              name="urgency"
-              value={formData.urgency}
-              onChange={handleChange}
-              className={`${inputClass} bg-white`}
-              onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            >
-              {urgencies.map(u => <option key={u}>{u}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Estado</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              className={`${inputClass} bg-white`}
-              onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            >
-              {statuses.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {/* Fecha límite */}
+        {/* Observaciones generales */}
         <div>
-          <label className={labelClass}>
-            <Calendar size={12} className="inline mr-1" />Fecha límite
-          </label>
-          <input
-            type="date"
-            name="dueDate"
-            value={formData.dueDate}
-            onChange={handleChange}
-            required
-            className={inputClass}
-            onFocus={e => e.target.style.borderColor = '#D61672'}
-            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-          />
-        </div>
-
-        {/* Observaciones */}
-        <div>
-          <label className={labelClass}>Observaciones</label>
+          <label className={labelClass}>Observaciones generales</label>
           <textarea
             name="observations"
             value={formData.observations}
             onChange={handleChange}
             rows={3}
-            placeholder="Notas adicionales..."
+            placeholder="Descripción general del problema o trabajo..."
             className={`${inputClass} resize-none`}
             onFocus={e => e.target.style.borderColor = '#D61672'}
             onBlur={e => e.target.style.borderColor = '#e2e8f0'}
@@ -277,7 +234,7 @@ export default function TaskForm({ onSubmit, initialData, types, urgencies, stat
             className="flex-1 text-white font-bold py-3 rounded-xl transition-all shadow-md text-sm"
             style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
           >
-            {initialData ? 'Actualizar Registro' : 'Guardar Recordatorio'}
+            {initialData ? 'Actualizar Tarea' : 'Guardar Tarea'}
           </button>
           {initialData && (
             <button
