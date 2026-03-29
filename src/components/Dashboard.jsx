@@ -9,26 +9,27 @@ import { usePagination } from '../hooks/usePagination.js';
 
 const URGENCY_ORDER = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
 
+// ✅ Visita más cercana por scheduledDate (no dueDate)
 function getNextVisit(task) {
   if (!task.visits?.length) return null;
-  const pending = task.visits
+  return task.visits
     .filter(v => v.status === 'Programada')
     .sort((a, b) => {
       if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate.localeCompare(b.scheduledDate);
       return (URGENCY_ORDER[b.urgency] || 0) - (URGENCY_ORDER[a.urgency] || 0);
-    });
-  return pending[0] || null;
+    })[0] || null;
 }
 
 function enrichTask(task) {
   const nextVisit = getNextVisit(task);
   return {
     ...task,
-    _nextVisit: nextVisit,
-    _urgency: nextVisit?.urgency || null,
-    _type: nextVisit?.type || null,
-    _technician: nextVisit?.technician || null,
-    _observations: nextVisit?.observations || null,
+    _nextVisit:     nextVisit,
+    _scheduledDate: nextVisit?.scheduledDate || null, // ✅ campo correcto
+    _urgency:       nextVisit?.urgency       || null,
+    _type:          nextVisit?.type          || null,
+    _technician:    nextVisit?.technician    || null,
+    _observations:  nextVisit?.observations  || null,
   };
 }
 
@@ -42,12 +43,13 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
 
   const tasksWithVisits  = enrichedTasks.filter(t => t._nextVisit !== null);
   const urgentTasksAll   = tasksWithVisits.filter(t => t._urgency === 'Alta');
-  const dueTodayTasksAll = tasksWithVisits.filter(t => t._nextVisit?.scheduledDate === today);
-  const overdueTasksAll  = tasksWithVisits.filter(t => t._nextVisit?.scheduledDate < today);
+  // ✅ Comparación contra scheduledDate
+  const dueTodayTasksAll = tasksWithVisits.filter(t => t._scheduledDate === today);
+  const overdueTasksAll  = tasksWithVisits.filter(t => t._scheduledDate && t._scheduledDate < today);
 
   const allActiveTasks = [...enrichedTasks].sort((a, b) => {
-    const dateA = a._nextVisit?.scheduledDate || '9999-99-99';
-    const dateB = b._nextVisit?.scheduledDate || '9999-99-99';
+    const dateA = a._scheduledDate || '9999-99-99';
+    const dateB = b._scheduledDate || '9999-99-99';
     if (dateA !== dateB) return dateA.localeCompare(dateB);
     return (URGENCY_ORDER[b._urgency] || 0) - (URGENCY_ORDER[a._urgency] || 0);
   });
@@ -85,7 +87,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
   return (
     <div className="space-y-6">
 
-      {/* Cabecera alertas */}
+      {/* Cabecera */}
       <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -106,7 +108,9 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   ? 'border-pink-200 text-white'
                   : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
               }`}
-              style={notificationPermission === 'granted' ? { background: 'linear-gradient(135deg, #D61672, #FFA901)' } : {}}>
+              style={notificationPermission === 'granted'
+                ? { background: 'linear-gradient(135deg, #D61672, #FFA901)' }
+                : {}}>
               {notificationPermission === 'granted' ? <Bell size={13} /> : <BellOff size={13} />}
               <span>{notificationPermission === 'granted' ? 'Notificaciones ON' : 'Activar notificaciones'}</span>
             </button>
@@ -114,7 +118,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
         </div>
       </div>
 
-      {/* ✅ Tarjetas de estadísticas con colores, nombres y click para filtrar */}
+      {/* Tarjetas estadísticas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Con visitas"
@@ -189,13 +193,17 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
           )}
 
           {pagination.paginatedItems.map(task => {
-            const visit = task._nextVisit;
+            const visit     = task._nextVisit;
+            // ✅ usa scheduledDate
             const isOverdue = visit && visit.scheduledDate < today;
             const isToday   = visit && visit.scheduledDate === today;
 
             return (
               <div key={task.id}
-                className={`p-4 hover:bg-slate-50 transition-colors ${isOverdue ? 'border-l-4 border-red-400' : isToday ? 'border-l-4 border-blue-400' : ''}`}>
+                className={`p-4 hover:bg-slate-50 transition-colors ${
+                  isOverdue ? 'border-l-4 border-red-400' :
+                  isToday   ? 'border-l-4 border-blue-400' : ''
+                }`}>
 
                 {/* Cabecera */}
                 <div className="flex items-start justify-between mb-2">
@@ -239,14 +247,13 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   )}
                 </div>
 
-                {/* ✅ Info próxima visita con observación incluida */}
+                {/* Info próxima visita */}
                 {visit ? (
                   <div className="bg-slate-50 rounded-lg border border-slate-200 p-2.5 space-y-1.5 mb-2">
                     <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: '#D61672' }}>
                       📅 Próxima visita
                     </p>
 
-                    {/* Fecha */}
                     <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
                       <Calendar size={12} className="text-slate-400 flex-shrink-0" />
                       <span>
@@ -261,7 +268,6 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                       )}
                     </div>
 
-                    {/* Tipo */}
                     {visit.type && (
                       <div className="flex items-center space-x-1.5 text-xs text-slate-600">
                         <Wrench size={12} className="text-slate-400 flex-shrink-0" />
@@ -269,7 +275,6 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                       </div>
                     )}
 
-                    {/* Técnico */}
                     {visit.technician && (
                       <div className="flex items-center space-x-1.5 text-xs text-slate-500">
                         <User size={12} className="text-slate-400 flex-shrink-0" />
@@ -277,7 +282,6 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                       </div>
                     )}
 
-                    {/* ✅ Observación de la visita */}
                     {visit.observations && (
                       <div className="mt-1 pt-1.5 border-t border-slate-200">
                         <p className="text-xs text-slate-500 italic">📝 {visit.observations}</p>
@@ -290,7 +294,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   </div>
                 )}
 
-                {/* Observaciones generales tarea */}
+                {/* Observaciones tarea */}
                 {task.observations && (
                   <div className="p-2 bg-amber-50 rounded-lg border border-amber-100">
                     <p className="text-xs text-slate-500 italic">📋 {task.observations}</p>
@@ -313,7 +317,6 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
           })}
         </div>
 
-        {/* Paginación */}
         {filteredTasks.length > 10 && (
           <div className="px-4 pb-4">
             <Pagination

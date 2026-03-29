@@ -5,7 +5,6 @@ const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 async function showSystemNotification(title, body, icon) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
-
   try {
     if (isMobile && 'serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.ready;
@@ -18,45 +17,55 @@ async function showSystemNotification(title, body, icon) {
   }
 }
 
-const buildToast = (task, index) => {
-  const today = new Date().toISOString().split('T')[0];
-  const isOverdue = task.dueDate < today;
-  const isDueToday = task.dueDate === today;
+// ✅ Visita programada más cercana de una tarea
+function getNextVisit(task) {
+  if (!task.visits?.length) return null;
+  return task.visits
+    .filter(v => v.status === 'Programada')
+    .sort((a, b) => {
+      if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate.localeCompare(b.scheduledDate);
+      return (a.scheduledTime || '').localeCompare(b.scheduledTime || '');
+    })[0] || null;
+}
 
-  let type = 'urgent';
-  let title = '';
-  let body = '';
+// ✅ Toast basado en la visita (no en task.dueDate)
+function buildToast(task, visit, index) {
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = visit.scheduledDate < today;
+  const isToday   = visit.scheduledDate === today;
+
+  let type, title, body;
 
   if (isOverdue) {
-    type = 'overdue';
-    title = '⚠️ Tarea atrasada';
-    body = `${task.clientName} — ${task.type} venció el ${task.dueDate}`;
-  } else if (isDueToday) {
-    type = 'today';
-    title = '📅 Tarea para hoy';
-    body = `${task.clientName} — ${task.type}`;
+    type  = 'overdue';
+    title = '⚠️ Visita atrasada';
+    body  = `${task.clientName} — ${visit.type || 'Visita'} programada el ${visit.scheduledDate}`;
+  } else if (isToday) {
+    type  = 'today';
+    title = '📅 Visita para hoy';
+    body  = `${task.clientName} — ${visit.type || 'Visita'}${visit.scheduledTime ? ' a las ' + visit.scheduledTime : ''}`;
   } else {
-    type = 'urgent';
-    title = '🔴 Tarea urgente';
-    body = `${task.clientName} — ${task.type} (${task.dueDate})`;
+    type  = 'urgent';
+    title = '🔴 Visita urgente';
+    body  = `${task.clientName} — ${visit.type || 'Visita'} el ${visit.scheduledDate}`;
   }
 
   return {
-    id: `${task.id}-${Date.now()}-${index}`,
+    id: `${task.id}-${visit.id}-${Date.now()}-${index}`,
     type,
     title,
     body,
-    observations: task.observations || '',
+    observations: visit.observations || task.observations || '',
     task,
   };
-};
+}
 
 export function useNotifications(tasks) {
   const [permission, setPermission] = useState(
     'Notification' in window ? Notification.permission : 'denied'
   );
   const [toasts, setToasts] = useState([]);
-  const notifiedIds = useRef(new Set());
+  const notifiedIds    = useRef(new Set());
   const hasInitialized = useRef(false);
 
   const removeToast = useCallback((id) => {
@@ -72,34 +81,42 @@ export function useNotifications(tasks) {
     return result;
   };
 
+  // ✅ showAlerts: recorre visitas dentro de cada tarea
   const showAlerts = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today   = new Date().toISOString().split('T')[0];
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
-    const alertTasks = pending.filter(t =>
-      t.dueDate < today || t.dueDate === today || t.urgency === 'Alta'
-    );
 
-    if (alertTasks.length === 0) {
+    const alertItems = [];
+    pending.forEach((task, ti) => {
+      const visit = getNextVisit(task);
+      if (!visit) return;
+      const isOverdue = visit.scheduledDate < today;
+      const isToday   = visit.scheduledDate === today;
+      const isUrgent  = visit.urgency === 'Alta';
+      if (isOverdue || isToday || isUrgent) {
+        alertItems.push(buildToast(task, visit, ti));
+      }
+    });
+
+    if (alertItems.length === 0) {
       setToasts([{
         id: `no-alerts-${Date.now()}`,
         type: 'today',
         title: '✅ Todo al día',
-        body: 'No hay tareas urgentes ni atrasadas.',
+        body: 'No hay visitas urgentes ni atrasadas.',
         observations: '',
         task: null,
       }]);
       return;
     }
-
-    const newToasts = alertTasks.map((task, index) => buildToast(task, index));
-    setToasts(newToasts);
+    setToasts(alertItems);
   }, [tasks]);
 
-  // Carga inicial automática
+  // ✅ Carga inicial y seguimiento basado en visitas
   useEffect(() => {
     if (tasks.length === 0) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today   = new Date().toISOString().split('T')[0];
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     if (!hasInitialized.current) {
@@ -107,43 +124,44 @@ export function useNotifications(tasks) {
       const newToasts = [];
 
       pending.forEach((task, index) => {
-        const isOverdue = task.dueDate < today;
-        const isDueToday = task.dueDate === today;
-        const isUrgent = task.urgency === 'Alta';
+        const visit = getNextVisit(task);
+        if (!visit) { notifiedIds.current.add(task.id); return; }
 
-        if (!isOverdue && !isDueToday && !isUrgent) {
+        const isOverdue = visit.scheduledDate < today;
+        const isToday   = visit.scheduledDate === today;
+        const isUrgent  = visit.urgency === 'Alta';
+
+        if (!isOverdue && !isToday && !isUrgent) {
           notifiedIds.current.add(task.id);
           return;
         }
-
         if (notifiedIds.current.has(task.id)) return;
         notifiedIds.current.add(task.id);
 
-        const toast = buildToast(task, index);
+        const toast = buildToast(task, visit, index);
         newToasts.push(toast);
-
-        // Notificación del sistema con delay escalonado
-        setTimeout(() => {
-          showSystemNotification(toast.title, toast.body, '/logo.png');
-        }, index * 800);
+        setTimeout(() => showSystemNotification(toast.title, toast.body, '/logo.png'), index * 800);
       });
 
       if (newToasts.length > 0) setToasts(newToasts);
       return;
     }
 
-    // Tareas nuevas después de la carga inicial
+    // Tareas nuevas tras la carga inicial
     pending.forEach((task, index) => {
       if (notifiedIds.current.has(task.id)) return;
+
+      const visit = getNextVisit(task);
+      if (!visit) { notifiedIds.current.add(task.id); return; }
+
+      const isOverdue = visit.scheduledDate < today;
+      const isToday   = visit.scheduledDate === today;
+      const isUrgent  = visit.urgency === 'Alta';
+
+      if (!isOverdue && !isToday && !isUrgent) return;
+
       notifiedIds.current.add(task.id);
-
-      const isOverdue = task.dueDate < today;
-      const isDueToday = task.dueDate === today;
-      const isUrgent = task.urgency === 'Alta';
-
-      if (!isOverdue && !isDueToday && !isUrgent) return;
-
-      const toast = buildToast(task, index);
+      const toast = buildToast(task, visit, index);
       setToasts(prev => [...prev, toast]);
       showSystemNotification(toast.title, toast.body, '/logo.png');
     });
