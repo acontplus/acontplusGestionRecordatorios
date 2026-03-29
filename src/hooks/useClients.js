@@ -17,7 +17,9 @@ export function useClients(user) {
 
   const saveClient = async (clientData) => {
     if (!user) return null;
-    // Usamos cédula/RUC como ID único del cliente
+    // ✅ CORREGIDO: protección contra identification undefined o vacío
+    if (!clientData.identification || !clientData.identification.trim()) return null;
+
     const clientId = clientData.identification.replace(/\s/g, '');
     const client = {
       id: clientId,
@@ -32,7 +34,7 @@ export function useClients(user) {
       await setDoc(
         doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId),
         client,
-        { merge: true } // Si ya existe, actualiza sin sobreescribir
+        { merge: true }
       );
       return client;
     } catch (error) {

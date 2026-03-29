@@ -57,14 +57,17 @@ export default function App() {
     };
   }, []);
 
+  // ✅ CORREGIDO: protección contra identification vacío y feedback de error
   const handleAddTask = async (task) => {
-    if (task.identification && task.clientName) {
+    if (task.identification && task.identification.trim() && task.clientName) {
       await saveClient(task);
     }
     const success = await addTask(task, user.email);
     if (success !== false) {
       setActiveTab('list');
       setEditingTask(null);
+    } else {
+      alert('Error al guardar la tarea. Verifica tu conexión o los permisos de la base de datos.');
     }
   };
 

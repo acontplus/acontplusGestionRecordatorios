@@ -25,6 +25,7 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
 
   const [errors, setErrors] = useState({});
 
+  // ✅ CORREGIDO: se asegura que identification siempre se copie del cliente seleccionado
   const handleSelectClient = (client) => {
     setSelectedClient(client);
     setFormData(prev => ({
@@ -33,7 +34,7 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
       clientName: client.name,
       clientPhone: client.phone || '',
       clientAddress: client.address || '',
-      identification: client.identification,
+      identification: client.identification || '',
     }));
     setErrors(prev => ({ ...prev, clientName: null }));
   };
@@ -64,14 +65,22 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  // ✅ CORREGIDO: se agrega isSubmitting para evitar doble envío y dar feedback visual
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
-    onSubmit(formData);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputClass = "w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors";
@@ -231,15 +240,17 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
         <div className="flex space-x-3 pt-2">
           <button
             type="submit"
-            className="flex-1 text-white font-bold py-3 rounded-xl transition-all shadow-md text-sm"
-            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+            disabled={isSubmitting}
+            className="flex-1 text-white font-bold py-3 rounded-xl transition-all shadow-md text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ background: isSubmitting ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}
           >
-            {initialData ? 'Actualizar Tarea' : 'Guardar Tarea'}
+            {isSubmitting ? 'Guardando...' : initialData ? 'Actualizar Tarea' : 'Guardar Tarea'}
           </button>
           {initialData && (
             <button
               type="button"
               onClick={onCancel}
+              disabled={isSubmitting}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl transition-colors text-sm"
             >
               Cancelar

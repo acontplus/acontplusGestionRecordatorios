@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { Phone, MapPin, Calendar, Edit, Trash2, CheckCircle, FileText, Wrench, Clock, User, Printer, MessageCircle, CalendarDays } from 'lucide-react';
+import {
+  Phone, MapPin, Edit, Trash2, CheckCircle, FileText,
+  Clock, User, Printer, MessageCircle, CalendarDays, CreditCard
+} from 'lucide-react';
 import { printTaskPDF, shareViaWhatsApp } from './TaskPDF.jsx';
 import VisitsModal from './VisitsModal.jsx';
 
@@ -12,11 +15,14 @@ const statusColors = {
 
 export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
   const [showVisits, setShowVisits] = useState(false);
-  const today = new Date().toISOString().split('T')[0];
-  const isOverdue = task.dueDate < today && task.status !== 'Completado' && task.status !== 'Cancelado';
 
   const visitCount = task.visits?.length || 0;
   const pendingVisits = task.visits?.filter(v => v.status === 'Programada').length || 0;
+
+  // ✅ 2. Próxima visita para mostrar info
+  const nextVisit = task.visits
+    ?.filter(v => v.status === 'Programada')
+    .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))[0] || null;
 
   const formatDate = (isoString) => {
     if (!isoString) return '—';
@@ -26,15 +32,27 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
     });
   };
 
+  const formatDateOnly = (dateStr) => {
+    if (!dateStr) return '—';
+    const [y, m, d] = dateStr.split('-');
+    return `${d}/${m}/${y}`;
+  };
+
   return (
     <>
-      <div className={`bg-white rounded-xl border p-4 shadow-sm ${isOverdue ? 'border-red-200' : 'border-slate-100'}`}>
+      <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
 
-        {/* Cabecera */}
+        {/* Cabecera: nombre + estado */}
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 min-w-0">
             <h4 className="font-semibold text-slate-800 truncate">{task.clientName}</h4>
-            <p className="text-sm text-slate-500">{task.type}</p>
+            {/* ✅ 2. Cédula/RUC visible en la tarjeta */}
+            {task.identification && (
+              <div className="flex items-center space-x-1 mt-0.5">
+                <CreditCard size={11} className="text-slate-400 flex-shrink-0" />
+                <span className="text-xs text-slate-400 font-mono">{task.identification}</span>
+              </div>
+            )}
           </div>
           <span className={`px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${statusColors[task.status] || 'bg-slate-100 text-slate-500'}`}>
             {task.status}
@@ -51,14 +69,8 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
           </div>
         )}
 
-        {/* Detalles */}
+        {/* Detalles del cliente */}
         <div className="space-y-1.5 mb-3">
-          {task.equipment && (
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500">
-              <Wrench size={12} className="flex-shrink-0 text-slate-400" />
-              <span className="truncate">{task.equipment}</span>
-            </div>
-          )}
           {task.clientPhone && (
             <div className="flex items-center space-x-1.5 text-xs text-slate-500">
               <Phone size={12} className="flex-shrink-0 text-slate-400" />
@@ -71,31 +83,42 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
               <span className="truncate">{task.clientAddress}</span>
             </div>
           )}
-
-          {/* Fecha de vencimiento */}
-          <div className="flex items-center">
-            <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-semibold border ${
-              isOverdue
-                ? 'bg-red-100 text-red-700 border-red-300'
-                : task.dueDate === today
-                ? 'bg-blue-100 text-blue-700 border-blue-300'
-                : 'bg-orange-100 text-orange-700 border-orange-300'
-            }`}>
-              <Calendar size={12} />
-              <span>
-                Vence: {task.dueDate}
-                {isOverdue ? ' — ATRASADO' : task.dueDate === today ? ' — HOY' : ''}
-              </span>
-            </span>
-          </div>
-
-          {/* Observaciones */}
-          {task.observations && (
-            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-              <p className="text-xs text-slate-400 italic">📝 {task.observations}</p>
-            </div>
-          )}
         </div>
+
+        {/* ✅ 2. SIN etiqueta "Vence" — en su lugar mostramos info de la próxima visita */}
+        {nextVisit && (
+          <div className="mb-3 p-2.5 bg-blue-50 border border-blue-100 rounded-lg space-y-1">
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-600 mb-1">📅 Próxima visita</p>
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <span className="text-xs font-semibold text-slate-700">
+                {formatDateOnly(nextVisit.scheduledDate)}
+                {nextVisit.scheduledTime && ` · ${nextVisit.scheduledTime}`}
+              </span>
+              {nextVisit.urgency && (
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                  nextVisit.urgency === 'Alta' ? 'bg-red-100 text-red-700' :
+                  nextVisit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-green-100 text-green-700'
+                }`}>{nextVisit.urgency}</span>
+              )}
+            </div>
+            {/* ✅ 4. Tipo de visita */}
+            {nextVisit.type && (
+              <p className="text-xs text-slate-600">🔧 {nextVisit.type}</p>
+            )}
+            {/* ✅ 4. Observaciones de la visita */}
+            {nextVisit.observations && (
+              <p className="text-xs text-slate-500 italic">📝 {nextVisit.observations}</p>
+            )}
+          </div>
+        )}
+
+        {/* Observaciones generales de la tarea */}
+        {task.observations && (
+          <div className="mb-3 p-2 bg-slate-50 rounded-lg border border-slate-100">
+            <p className="text-xs text-slate-400 italic">📋 {task.observations}</p>
+          </div>
+        )}
 
         {/* Badge de visitas */}
         {visitCount > 0 && (
@@ -116,7 +139,7 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
           </button>
         )}
 
-        {/* Footer */}
+        {/* ✅ 2. Footer: fecha de CREACIÓN + usuario */}
         <div className="py-2 border-t border-b border-slate-100 mb-3 space-y-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1 text-xs text-slate-400">
@@ -166,7 +189,6 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
             <button onClick={() => shareViaWhatsApp(task)} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Enviar por WhatsApp">
               <MessageCircle size={18} />
             </button>
-            {/* Botón visitas */}
             <button
               onClick={() => setShowVisits(true)}
               className="p-2 rounded-lg transition-colors relative"
@@ -195,13 +217,8 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
         </div>
       </div>
 
-      {/* Modal de visitas */}
       {showVisits && (
-        <VisitsModal
-          task={task}
-          user={user}
-          onClose={() => setShowVisits(false)}
-        />
+        <VisitsModal task={task} user={user} onClose={() => setShowVisits(false)} />
       )}
     </>
   );
