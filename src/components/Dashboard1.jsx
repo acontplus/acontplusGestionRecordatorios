@@ -37,11 +37,8 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
   const [activeFilter, setActiveFilter] = useState(null);
 
   // ✅ CORREGIDO: fecha LOCAL del navegador, no UTC
-  // new Date().toISOString() devuelve UTC → en Ecuador (UTC-5) da el día siguiente tras las 7pm
-  const today = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
+  // new Date().toISOString() devuelve UTC → en Ecuador (UTC-5) da el día siguiente después de las 7pm
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
   const enrichedTasks = tasks
     .filter(t => t.status !== 'Completado' && t.status !== 'Cancelado')
@@ -49,6 +46,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
 
   const tasksWithVisits  = enrichedTasks.filter(t => t._nextVisit !== null);
   const urgentTasksAll   = tasksWithVisits.filter(t => t._urgency === 'Alta');
+  // ✅ Comparación contra scheduledDate con fecha local
   const dueTodayTasksAll = tasksWithVisits.filter(t => t._scheduledDate === today);
   const overdueTasksAll  = tasksWithVisits.filter(t => t._scheduledDate && t._scheduledDate < today);
 
@@ -198,21 +196,10 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
           )}
 
           {pagination.paginatedItems.map(task => {
-            const visit     = task._nextVisit;
-            // ✅ Usa today con fecha LOCAL (ya corregida arriba)
+            const visit = task._nextVisit;
+            // ✅ Usa today con fecha local (ya corregida arriba)
             const isOverdue = visit && visit.scheduledDate < today;
             const isToday   = visit && visit.scheduledDate === today;
-
-            // Color del bloque de visita según estado temporal
-            const visitBlockBg =
-              isOverdue ? 'bg-red-50 border-red-200' :
-              isToday   ? 'bg-blue-50 border-blue-200' :
-              'bg-slate-50 border-slate-200';
-
-            const visitTitleColor =
-              isOverdue ? 'text-red-600' :
-              isToday   ? 'text-blue-600' :
-              'text-slate-500';
 
             return (
               <div key={task.id}
@@ -221,7 +208,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   isToday   ? 'border-l-4 border-blue-400' : ''
                 }`}>
 
-                {/* Cabecera: nombre + estado */}
+                {/* Cabecera */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 flex-wrap gap-1">
@@ -263,55 +250,57 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                   )}
                 </div>
 
-                {/* Bloque próxima visita */}
+                {/* Info próxima visita */}
                 {visit ? (
-                  <div className={`rounded-lg border p-2.5 space-y-1.5 mb-2 ${visitBlockBg}`}>
-
-                    {/* ── Fila 1: título + etiquetas PROMINENTES ── */}
-                    <div className="flex items-center justify-between flex-wrap gap-1.5">
-                      <p className={`text-xs font-bold uppercase tracking-wide ${visitTitleColor}`}>
-                        📅 PRÓXIMA VISITA
+                  <div className={`rounded-lg border p-2.5 space-y-1.5 mb-2 ${
+                    isOverdue ? 'bg-red-50 border-red-200' :
+                    isToday   ? 'bg-blue-50 border-blue-200' :
+                    'bg-slate-50 border-slate-200'
+                  }`}>
+                    {/* Título + etiquetas Retrasada / Hoy */}
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <p className={`text-xs font-bold uppercase tracking-wide ${
+                        isOverdue ? 'text-red-600' :
+                        isToday   ? 'text-blue-600' :
+                        'text-slate-500'
+                      }`} style={!isOverdue && !isToday ? { color: '#D61672' } : {}}>
+                        📅 Próxima visita
                       </p>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         {isOverdue && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-sm">
+                          <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded border border-red-200">
                             ⚠️ Retrasada
                           </span>
                         )}
                         {isToday && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500 text-white shadow-sm">
+                          <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded border border-blue-200">
                             📅 Hoy
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* ── Fila 2: fecha + hora ── */}
-                    <div className="flex items-center space-x-1.5 text-xs font-semibold">
+                    {/* Fecha + hora */}
+                    <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
                       <Calendar size={12} className="text-slate-400 flex-shrink-0" />
-                      <span className={isOverdue ? 'text-red-700 font-bold' : 'text-slate-700'}>
+                      <span className={isOverdue ? 'text-red-700' : 'text-slate-700'}>
                         {formatDateOnly(visit.scheduledDate)}
                         {visit.scheduledTime && ` · ${visit.scheduledTime}`}
                       </span>
                     </div>
 
-                    {/* ── Tipo de visita ── */}
                     {visit.type && (
                       <div className="flex items-center space-x-1.5 text-xs text-slate-600">
                         <Wrench size={12} className="text-slate-400 flex-shrink-0" />
                         <span>{visit.type}</span>
                       </div>
                     )}
-
-                    {/* ── Técnico ── */}
                     {visit.technician && (
                       <div className="flex items-center space-x-1.5 text-xs text-slate-500">
                         <User size={12} className="text-slate-400 flex-shrink-0" />
                         <span className="truncate">{visit.technician}</span>
                       </div>
                     )}
-
-                    {/* ── Observaciones ── */}
                     {visit.observations && (
                       <div className="mt-1 pt-1.5 border-t border-slate-200">
                         <p className="text-xs text-slate-500 italic">📝 {visit.observations}</p>
@@ -342,7 +331,6 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
                     <span className="truncate max-w-32">{task.createdBy || '—'}</span>
                   </div>
                 </div>
-
               </div>
             );
           })}
