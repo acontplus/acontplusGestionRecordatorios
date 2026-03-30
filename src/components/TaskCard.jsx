@@ -16,7 +16,8 @@ const statusColors = {
 export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
   const [showVisits, setShowVisits] = useState(false);
 
-  const today       = new Date().toISOString().split('T')[0];
+  // Fecha local del navegador (evita desfase UTC en zonas -5 como Ecuador)
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const visitCount  = task.visits?.length || 0;
   const pendingVisits = task.visits?.filter(v => v.status === 'Programada').length || 0;
 

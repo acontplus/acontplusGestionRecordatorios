@@ -335,7 +335,7 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
 // ─── Formulario nueva visita ───────────────────────────────────────────────
 function AddVisitForm({ onAdd, onCancel, currentUser }) {
   const [formData, setFormData] = useState({
-    scheduledDate: new Date().toISOString().split('T')[0],
+    scheduledDate: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
     scheduledTime: '',
     type:          TASK_TYPES[0],
     urgency:       'Media',
@@ -443,9 +443,10 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
   const [isLoading,     setIsLoading]     = useState(false);
 
   // ── Flags de estado temporal (solo para visitas Programadas) ──────────────
-  const today        = new Date().toISOString().split('T')[0];
-  const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < today;
-  const isToday      = visit.status === 'Programada' && visit.scheduledDate === today;
+  // Fecha local del navegador (evita desfase UTC en zonas -5 como Ecuador)
+  const todayLocal = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < todayLocal;
+  const isToday      = visit.status === 'Programada' && visit.scheduledDate === todayLocal;
 
   const handleComplete = async () => {
     setIsLoading(true);
