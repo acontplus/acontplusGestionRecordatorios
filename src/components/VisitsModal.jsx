@@ -2,19 +2,13 @@ import { useState } from 'react';
 import {
   X, Plus, Clock, CheckCircle, Calendar, User,
   Phone, MapPin, FileText, Wrench, AlertCircle, Hash,
-  Edit, Printer, MessageCircle, RotateCcw, Ban
+  Edit, Printer, MessageCircle, RotateCcw, Ban, Settings
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
-
-const TASK_TYPES = [
-  'Mantenimiento preventivo',
-  'Mantenimiento correctivo',
-  'Instalación',
-  'Revisión técnica',
-  'Cambio de filtros',
-  'Limpieza de equipo',
-  'Otro',
-];
+import { useTiposVisita } from '../hooks/useTiposVisita';
+import { useTecnicos } from '../hooks/useTecnicos';
+import TiposVisitaForm from './TiposVisitaForm.jsx';
+import TecnicosForm from './TecnicosForm.jsx';
 
 const URGENCIES = ['Alta', 'Media', 'Baja'];
 
@@ -333,15 +327,15 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
 }
 
 // ─── Formulario nueva visita ───────────────────────────────────────────────
-function AddVisitForm({ onAdd, onCancel, currentUser }) {
+function AddVisitForm({ onAdd, onCancel, currentUser, tiposParaSelect, tecnicosParaSelect }) {
   const [formData, setFormData] = useState({
     scheduledDate: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
     scheduledTime: '',
-    type:          TASK_TYPES[0],
+    type:          tiposParaSelect[0] || '',
     urgency:       'Media',
     visitStatus:   'Pendiente',
     observations:  '',
-    technician:    currentUser?.email || '',
+    technician:    '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -391,26 +385,35 @@ function AddVisitForm({ onAdd, onCancel, currentUser }) {
               onChange={handleChange} className={inp} onFocus={foc} onBlur={blr} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={lbl}><Wrench size={11} className="inline mr-1" />Tipo de visita</label>
-            <select name="type" value={formData.type} onChange={handleChange}
-              className={inp} onFocus={foc} onBlur={blr}>
-              {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={lbl}><AlertCircle size={11} className="inline mr-1" />Urgencia</label>
-            <select name="urgency" value={formData.urgency} onChange={handleChange}
-              className={inp} onFocus={foc} onBlur={blr}>
-              {URGENCIES.map(u => <option key={u}>{u}</option>)}
-            </select>
-          </div>
+        {/* Tipo de visita — cargado desde Firestore */}
+        <div>
+          <label className={lbl}><Wrench size={11} className="inline mr-1" />Tipo de visita</label>
+          <select name="type" value={formData.type} onChange={handleChange}
+            className={inp} onFocus={foc} onBlur={blr}>
+            <option value="">— Selecciona un tipo —</option>
+            {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
+
+        {/* Técnico — cargado desde Firestore */}
         <div>
           <label className={lbl}><User size={11} className="inline mr-1" />Técnico asignado</label>
-          <input type="text" name="technician" value={formData.technician} onChange={handleChange}
-            placeholder="Email o nombre del técnico" className={inp} onFocus={foc} onBlur={blr} />
+          <select name="technician" value={formData.technician} onChange={handleChange}
+            className={inp} onFocus={foc} onBlur={blr}>
+            <option value="">— Selecciona un técnico —</option>
+            {tecnicosParaSelect.map(t => (
+              <option key={t.id} value={t.nombre}>{t.nombre}{t.email ? ` (${t.email})` : ''}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Urgencia */}
+        <div>
+          <label className={lbl}><AlertCircle size={11} className="inline mr-1" />Urgencia</label>
+          <select name="urgency" value={formData.urgency} onChange={handleChange}
+            className={inp} onFocus={foc} onBlur={blr}>
+            {URGENCIES.map(u => <option key={u}>{u}</option>)}
+          </select>
         </div>
         <div>
           <label className={lbl}>Observaciones</label>
@@ -650,6 +653,15 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
 
 // ─── Modal principal centrado ──────────────────────────────────────────────
 export default function VisitsModal({ task, user, onClose }) {
+  // ── Hooks de catálogos ──────────────────────────────────────────────────
+  const { tiposParaSelect }   = useTiposVisita(user);
+  const { tecnicos }          = useTecnicos(user);
+  const tecnicosParaSelect    = tecnicos;
+
+  // ── Estados de formularios de gestión ────────────────────────────────────
+  const [showTiposForm,    setShowTiposForm]    = useState(false);
+  const [showTecnicosForm, setShowTecnicosForm] = useState(false);
+
   const {
     visits, isLoading,
     addVisit, editVisit, completeVisit,
@@ -685,6 +697,10 @@ export default function VisitsModal({ task, user, onClose }) {
 
   return (
     <>
+      {/* Sub-modales de catálogos */}
+      {showTiposForm    && <TiposVisitaForm user={user} onClose={() => setShowTiposForm(false)} />}
+      {showTecnicosForm && <TecnicosForm    user={user} onClose={() => setShowTecnicosForm(false)} />}
+
       {/* Sub-modal de edición */}
       {editingVisit && (
         <EditVisitModal
@@ -813,7 +829,13 @@ export default function VisitsModal({ task, user, onClose }) {
                   <Plus size={17} /><span>Agregar visita</span>
                 </button>
               ) : (
-                <AddVisitForm onAdd={handleAdd} onCancel={() => setShowAddForm(false)} currentUser={user} />
+                <AddVisitForm
+                onAdd={handleAdd}
+                onCancel={() => setShowAddForm(false)}
+                currentUser={user}
+                tiposParaSelect={tiposParaSelect}
+                tecnicosParaSelect={tecnicosParaSelect}
+              />
               )}
             </div>
 
@@ -842,14 +864,34 @@ export default function VisitsModal({ task, user, onClose }) {
           </div>
 
           {/* FOOTER */}
-          <div className="flex-shrink-0 px-5 py-3 border-t border-slate-100 bg-white flex items-center justify-between">
-            <p className="text-xs text-slate-400">
-              {visits.length} visita{visits.length !== 1 ? 's' : ''} en total
-            </p>
-            <button onClick={onClose}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-              Cerrar
-            </button>
+          <div className="flex-shrink-0 px-5 py-3 border-t border-slate-100 bg-white">
+            {/* Fila principal: contador + cerrar */}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-slate-400">
+                {visits.length} visita{visits.length !== 1 ? 's' : ''} en total
+              </p>
+              <button onClick={onClose}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                Cerrar
+              </button>
+            </div>
+            {/* Botones de gestión de catálogos */}
+            <div className="flex items-center space-x-2 pt-2 border-t border-slate-100">
+              <p className="text-xs text-slate-400 mr-auto">Catálogos:</p>
+              <button
+                onClick={() => setShowTiposForm(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-pink-200 hover:bg-pink-50 transition-colors"
+                style={{ color: '#D61672' }}>
+                <Wrench size={13} />
+                <span>Tipos de visita</span>
+              </button>
+              <button
+                onClick={() => setShowTecnicosForm(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200 hover:bg-blue-50 text-blue-600 transition-colors">
+                <User size={13} />
+                <span>Técnicos</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
