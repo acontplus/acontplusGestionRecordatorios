@@ -16,13 +16,18 @@ const statusColors = {
 export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
   const [showVisits, setShowVisits] = useState(false);
 
-  const visitCount = task.visits?.length || 0;
+  const today       = new Date().toISOString().split('T')[0];
+  const visitCount  = task.visits?.length || 0;
   const pendingVisits = task.visits?.filter(v => v.status === 'Programada').length || 0;
 
-  // ✅ 2. Próxima visita para mostrar info
+  // Próxima visita programada más cercana
   const nextVisit = task.visits
     ?.filter(v => v.status === 'Programada')
     .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))[0] || null;
+
+  // Flags de estado temporal de la próxima visita
+  const isVisitOverdue = nextVisit && nextVisit.scheduledDate < today;
+  const isVisitToday   = nextVisit && nextVisit.scheduledDate === today;
 
   const formatDate = (isoString) => {
     if (!isoString) return '—';
@@ -38,6 +43,19 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
     return `${d}/${m}/${y}`;
   };
 
+  // Color del bloque de próxima visita según estado temporal
+  const visitBlockStyle = isVisitOverdue
+    ? 'bg-red-50 border-red-200'
+    : isVisitToday
+      ? 'bg-blue-50 border-blue-200'
+      : 'bg-slate-50 border-slate-200';
+
+  const visitTitleColor = isVisitOverdue
+    ? 'text-red-600'
+    : isVisitToday
+      ? 'text-blue-600'
+      : 'text-slate-500';
+
   return (
     <>
       <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
@@ -46,7 +64,6 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 min-w-0">
             <h4 className="font-semibold text-slate-800 truncate">{task.clientName}</h4>
-            {/* ✅ 2. Cédula/RUC visible en la tarjeta */}
             {task.identification && (
               <div className="flex items-center space-x-1 mt-0.5">
                 <CreditCard size={11} className="text-slate-400 flex-shrink-0" />
@@ -85,28 +102,50 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
           )}
         </div>
 
-        {/* ✅ 2. SIN etiqueta "Vence" — en su lugar mostramos info de la próxima visita */}
+        {/* Bloque de próxima visita con etiquetas Retrasada / Hoy */}
         {nextVisit && (
-          <div className="mb-3 p-2.5 bg-blue-50 border border-blue-100 rounded-lg space-y-1">
-            <p className="text-xs font-bold uppercase tracking-wide text-blue-600 mb-1">📅 Próxima visita</p>
+          <div className={`mb-3 p-2.5 border rounded-lg space-y-1 ${visitBlockStyle}`}>
+
+            {/* Título + etiquetas de estado temporal */}
+            <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
+              <p className={`text-xs font-bold uppercase tracking-wide ${visitTitleColor}`}>
+                📅 Próxima visita
+              </p>
+              <div className="flex items-center gap-1">
+                {isVisitOverdue && (
+                  <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700 border border-red-200">
+                    ⚠️ Retrasada
+                  </span>
+                )}
+                {isVisitToday && !isVisitOverdue && (
+                  <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    📅 Hoy
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Fecha + hora + urgencia */}
             <div className="flex items-center justify-between flex-wrap gap-1">
-              <span className="text-xs font-semibold text-slate-700">
+              <span className={`text-xs font-semibold ${isVisitOverdue ? 'text-red-700' : 'text-slate-700'}`}>
                 {formatDateOnly(nextVisit.scheduledDate)}
                 {nextVisit.scheduledTime && ` · ${nextVisit.scheduledTime}`}
               </span>
               {nextVisit.urgency && (
                 <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
-                  nextVisit.urgency === 'Alta' ? 'bg-red-100 text-red-700' :
+                  nextVisit.urgency === 'Alta'  ? 'bg-red-100 text-red-700'     :
                   nextVisit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700' :
                   'bg-green-100 text-green-700'
                 }`}>{nextVisit.urgency}</span>
               )}
             </div>
-            {/* ✅ 4. Tipo de visita */}
+
+            {/* Tipo de visita */}
             {nextVisit.type && (
               <p className="text-xs text-slate-600">🔧 {nextVisit.type}</p>
             )}
-            {/* ✅ 4. Observaciones de la visita */}
+
+            {/* Observaciones de la visita */}
             {nextVisit.observations && (
               <p className="text-xs text-slate-500 italic">📝 {nextVisit.observations}</p>
             )}
@@ -139,7 +178,7 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
           </button>
         )}
 
-        {/* ✅ 2. Footer: fecha de CREACIÓN + usuario */}
+        {/* Footer: fecha de creación + usuario */}
         <div className="py-2 border-t border-b border-slate-100 mb-3 space-y-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1 text-xs text-slate-400">
@@ -177,16 +216,22 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
         {/* Acciones */}
         <div className="flex justify-between items-center">
           <div className="flex space-x-1">
-            <button onClick={onEdit} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
+            <button onClick={onEdit}
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
               <Edit size={18} />
             </button>
-            <button onClick={onDelete} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+            <button onClick={onDelete}
+              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
               <Trash2 size={18} />
             </button>
-            <button onClick={() => printTaskPDF(task)} className="p-2 text-slate-400 hover:bg-indigo-50 rounded-lg transition-colors" style={{ color: '#6366f1' }} title="Ver PDF">
+            <button onClick={() => printTaskPDF(task)}
+              className="p-2 text-slate-400 hover:bg-indigo-50 rounded-lg transition-colors"
+              style={{ color: '#6366f1' }} title="Ver PDF">
               <Printer size={18} />
             </button>
-            <button onClick={() => shareViaWhatsApp(task)} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Enviar por WhatsApp">
+            <button onClick={() => shareViaWhatsApp(task)}
+              className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+              title="Enviar por WhatsApp">
               <MessageCircle size={18} />
             </button>
             <button

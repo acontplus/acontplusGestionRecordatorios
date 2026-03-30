@@ -187,38 +187,36 @@ export function shareVisitWhatsApp(task, visit) {
     `📋 *Aviso de Visita Técnica*`,
     `━━━━━━━━━━━━━━━━━━━━`,
     task.serviceOrder ? `🔖 *OS:* ${task.serviceOrder}` : '',
-    ``,
-    `👤 *CLIENTE*`,
+    ``, `👤 *CLIENTE*`,
     `• Nombre: ${task.clientName}`,
     task.clientPhone   ? `• Teléfono: ${task.clientPhone}`    : '',
     task.clientAddress ? `• Dirección: ${task.clientAddress}` : '',
-    ``,
-    `📅 *VISITA PROGRAMADA*`,
+    ``, `📅 *VISITA PROGRAMADA*`,
     `• Fecha: ${formatDateOnly(visit.scheduledDate)}${visit.scheduledTime ? ' a las ' + visit.scheduledTime : ''}`,
-    visit.type       ? `• Tipo: ${visit.type}`           : '',
-    visit.urgency    ? `• Urgencia: ${visit.urgency}`    : '',
-    visit.technician ? `• Técnico: ${visit.technician}`  : '',
+    visit.type       ? `• Tipo: ${visit.type}`          : '',
+    visit.urgency    ? `• Urgencia: ${visit.urgency}`   : '',
+    visit.technician ? `• Técnico: ${visit.technician}` : '',
     visit.observations ? `\n📝 *Observaciones:*\n${visit.observations}` : '',
     visit.status === 'Realizada' && visit.completedAt ? [
       ``, `✅ *CIERRE*`,
       `• Realizada: ${formatDate(visit.completedAt)}`,
-      visit.completedBy         ? `• Por: ${visit.completedBy}`           : '',
-      visit.closingObservations ? `• Obs: ${visit.closingObservations}`   : '',
+      visit.completedBy         ? `• Por: ${visit.completedBy}`          : '',
+      visit.closingObservations ? `• Obs: ${visit.closingObservations}`  : '',
     ].filter(Boolean).join('\n') : '',
     ``, `━━━━━━━━━━━━━━━━━━━━`,
     `_Enviado desde Acontplus Recordatorios_`,
   ].filter(l => l !== '').join('\n');
 
   const encoded = encodeURIComponent(lines);
-  const raw   = task.clientPhone ? task.clientPhone.replace(/\D/g, '') : '';
-  const phone = raw.startsWith('0') ? raw.slice(1) : raw;
-  const url   = phone
+  const raw     = task.clientPhone ? task.clientPhone.replace(/\D/g, '') : '';
+  const phone   = raw.startsWith('0') ? raw.slice(1) : raw;
+  const url     = phone
     ? `https://wa.me/593${phone}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
   window.open(url, '_blank');
 }
 
-// ─── Sub-modal de edición superpuesto ─────────────────────────────────────
+// ─── Sub-modal de edición superpuesto (z-60) ───────────────────────────────
 function EditVisitModal({ visit, onSave, onClose, currentUser }) {
   const [formData, setFormData] = useState({
     scheduledDate: visit.scheduledDate || new Date().toISOString().split('T')[0],
@@ -244,34 +242,30 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
 
   const inp = "w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors bg-white";
   const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
-  const foc = e => e.target.style.borderColor = '#D61672';
+  const foc = e => e.target.style.borderColor = '#2563eb';
   const blr = e => e.target.style.borderColor = '#e2e8f0';
 
   return (
-    /* z-60 para flotar SOBRE el modal principal (z-50) */
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Overlay semi-oscuro que no cierra (el usuario debe guardar o cancelar) */}
       <div className="absolute inset-0" style={{ backgroundColor: 'rgba(15,23,42,0.45)' }} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in">
-
-        {/* Header del sub-modal */}
         <div className="px-5 py-4 flex items-center justify-between"
           style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-white bg-opacity-20">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.2)' }}>
               <Edit size={15} className="text-white" />
             </div>
             <div>
               <p className="text-sm font-bold text-white">Editar visita</p>
               <p className="text-xs text-white" style={{ opacity: 0.75 }}>
-                {formatDateOnly(visit.scheduledDate)}
-                {visit.scheduledTime ? ' · ' + visit.scheduledTime : ''}
+                {formatDateOnly(visit.scheduledDate)}{visit.scheduledTime ? ' · ' + visit.scheduledTime : ''}
               </p>
             </div>
           </div>
           <button onClick={onClose}
-            className="p-1.5 rounded-xl transition-colors text-white"
+            className="p-1.5 rounded-xl text-white transition-colors"
             style={{ opacity: 0.8 }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; e.currentTarget.style.opacity = 1; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.opacity = 0.8; }}>
@@ -279,10 +273,7 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
           </button>
         </div>
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-
-          {/* Fecha y hora */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={lbl}><Calendar size={11} className="inline mr-1" />Fecha de visita</label>
@@ -295,8 +286,6 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
                 onChange={handleChange} className={inp} onFocus={foc} onBlur={blr} />
             </div>
           </div>
-
-          {/* Tipo y urgencia */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={lbl}><Wrench size={11} className="inline mr-1" />Tipo de visita</label>
@@ -313,31 +302,24 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
               </select>
             </div>
           </div>
-
-          {/* Técnico */}
           <div>
             <label className={lbl}><User size={11} className="inline mr-1" />Técnico asignado</label>
             <input type="text" name="technician" value={formData.technician} onChange={handleChange}
               placeholder="Email o nombre del técnico" className={inp} onFocus={foc} onBlur={blr} />
           </div>
-
-          {/* Observaciones */}
           <div>
             <label className={lbl}>Observaciones</label>
             <textarea name="observations" value={formData.observations} onChange={handleChange}
               rows={3} placeholder="Descripción del trabajo a realizar..."
               className={`${inp} resize-none`} onFocus={foc} onBlur={blr} />
           </div>
-
-          {/* Botones */}
           <div className="flex space-x-2 pt-1">
             <button type="submit" disabled={isLoading}
               className="flex-1 flex items-center justify-center space-x-2 text-white text-sm font-bold py-2.5 rounded-xl disabled:opacity-50 transition-all"
               style={{ background: isLoading ? '#94a3b8' : 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
               {isLoading
                 ? <><span className="animate-spin">⏳</span><span>Guardando...</span></>
-                : <><Edit size={15} /><span>Guardar cambios</span></>
-              }
+                : <><Edit size={15} /><span>Guardar cambios</span></>}
             </button>
             <button type="button" onClick={onClose}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
@@ -396,7 +378,6 @@ function AddVisitForm({ onAdd, onCancel, currentUser }) {
           <X size={16} />
         </button>
       </div>
-
       <form onSubmit={handleSubmit} className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -443,8 +424,7 @@ function AddVisitForm({ onAdd, onCancel, currentUser }) {
             style={{ background: isLoading ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
             {isLoading
               ? <><span className="animate-spin">⏳</span><span>Guardando...</span></>
-              : <><Plus size={15} /><span>Agregar visita</span></>
-            }
+              : <><Plus size={15} /><span>Agregar visita</span></>}
           </button>
           <button type="button" onClick={onCancel}
             className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
@@ -462,6 +442,11 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
   const [closingObs,    setClosingObs]    = useState('');
   const [isLoading,     setIsLoading]     = useState(false);
 
+  // ── Flags de estado temporal (solo para visitas Programadas) ──────────────
+  const today        = new Date().toISOString().split('T')[0];
+  const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < today;
+  const isToday      = visit.status === 'Programada' && visit.scheduledDate === today;
+
   const handleComplete = async () => {
     setIsLoading(true);
     await onComplete(visit.id, { closingObservations: closingObs });
@@ -469,22 +454,24 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
     setShowCloseForm(false);
   };
 
-  // Colores por estado
+  // Colores del borde/fondo del item
   const bgColor =
-    visit.status === 'Realizada' ? 'bg-green-50 border-green-200' :
-    visit.status === 'Cancelada' ? 'bg-amber-50 border-amber-200' :
-    visit.status === 'Anulada'   ? 'bg-red-50 border-red-200'     :
-    'bg-blue-50 border-blue-200';
+    visit.status === 'Realizada' ? 'bg-green-50 border-green-200'   :
+    visit.status === 'Cancelada' ? 'bg-amber-50 border-amber-200'   :
+    visit.status === 'Anulada'   ? 'bg-red-50 border-red-200'       :
+    isOverdue                    ? 'bg-red-50 border-red-300'        :
+    isToday                      ? 'bg-blue-50 border-blue-300'      :
+    'bg-slate-50 border-slate-200';
 
   const statusStyle =
-    visit.status === 'Realizada' ? 'bg-green-100 text-green-700'   :
-    visit.status === 'Cancelada' ? 'bg-amber-100 text-amber-700'   :
-    visit.status === 'Anulada'   ? 'bg-red-100 text-red-600'       :
+    visit.status === 'Realizada' ? 'bg-green-100 text-green-700'    :
+    visit.status === 'Cancelada' ? 'bg-amber-100 text-amber-700'    :
+    visit.status === 'Anulada'   ? 'bg-red-100 text-red-600'        :
     'bg-blue-100 text-blue-700';
 
   const urgencyStyle =
-    visit.urgency === 'Alta'  ? 'bg-red-100 text-red-700'     :
-    visit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700' :
+    visit.urgency === 'Alta'  ? 'bg-red-100 text-red-700'       :
+    visit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700'  :
     'bg-slate-100 text-slate-600';
 
   return (
@@ -493,6 +480,8 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
       {/* Cabecera */}
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
+
+          {/* Badges de estado + urgencia + Retrasada/Hoy */}
           <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
             <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${statusStyle}`}>
               {visit.status}
@@ -502,10 +491,26 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
                 {visit.urgency}
               </span>
             )}
+            {/* ── Etiqueta Retrasada ── */}
+            {isOverdue && (
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-red-200 text-red-800 border border-red-300">
+                ⚠️ Retrasada
+              </span>
+            )}
+            {/* ── Etiqueta Hoy ── */}
+            {isToday && (
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-blue-200 text-blue-800 border border-blue-300">
+                📅 Hoy
+              </span>
+            )}
           </div>
-          <p className="text-sm font-bold text-slate-800">
+
+          {/* Fecha + hora */}
+          <p className={`text-sm font-bold ${isOverdue ? 'text-red-700' : 'text-slate-800'}`}>
             📅 {formatDateOnly(visit.scheduledDate)}
-            {visit.scheduledTime && <span className="text-slate-500 font-normal ml-1">· {visit.scheduledTime}</span>}
+            {visit.scheduledTime && (
+              <span className="text-slate-500 font-normal ml-1">· {visit.scheduledTime}</span>
+            )}
           </p>
           {visit.type && (
             <p className="text-xs text-slate-600 mt-0.5 flex items-center space-x-1">
@@ -519,10 +524,8 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
           )}
         </div>
 
-        {/* ── Botones de acción por estado ── */}
+        {/* Botones de acción por estado */}
         <div className="flex space-x-1 ml-2 flex-shrink-0">
-
-          {/* PROGRAMADA: completar + editar + cancelar + anular */}
           {visit.status === 'Programada' && (
             <>
               <button onClick={() => setShowCloseForm(!showCloseForm)}
@@ -547,8 +550,6 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
               </button>
             </>
           )}
-
-          {/* CANCELADA: revertir a programada + anular */}
           {visit.status === 'Cancelada' && (
             <>
               <button onClick={() => onRevert(visit.id)}
@@ -563,8 +564,6 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
               </button>
             </>
           )}
-
-          {/* ANULADA: solo revertir a programada */}
           {visit.status === 'Anulada' && (
             <button onClick={() => onRevert(visit.id)}
               className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
@@ -582,7 +581,7 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
         </div>
       )}
 
-      {/* Nota de anulación */}
+      {/* Nota anulada */}
       {visit.status === 'Anulada' && (
         <div className="mb-2 px-2 py-1.5 rounded-lg bg-red-100 border border-red-200">
           <p className="text-xs text-red-600 font-semibold">🚫 Visita anulada — inactiva</p>
@@ -657,12 +656,13 @@ export default function VisitsModal({ task, user, onClose }) {
   } = useVisits(task, user);
 
   const [showAddForm,  setShowAddForm]  = useState(false);
-  const [editingVisit, setEditingVisit] = useState(null); // controla el sub-modal
+  const [editingVisit, setEditingVisit] = useState(null);
 
+  // ── CAMBIO 3: orden ASCENDENTE — más cercana a hoy primero ────────────────
   const sortedVisits = [...visits].sort((a, b) => {
     const da = new Date(a.scheduledDate + 'T' + (a.scheduledTime || '00:00'));
     const db = new Date(b.scheduledDate + 'T' + (b.scheduledTime || '00:00'));
-    return db - da;
+    return da - db; // ascendente: fecha menor (más cercana) primero
   });
 
   const pendingCount   = visits.filter(v => v.status === 'Programada').length;
@@ -675,7 +675,6 @@ export default function VisitsModal({ task, user, onClose }) {
     if (ok) setShowAddForm(false);
   };
 
-  // Edición: se abre el sub-modal superpuesto
   const handleStartEdit = (visit) => setEditingVisit(visit);
 
   const handleSaveEdit = async (data) => {
@@ -685,7 +684,7 @@ export default function VisitsModal({ task, user, onClose }) {
 
   return (
     <>
-      {/* ── Sub-modal de edición (z-60, sobre el modal principal) ── */}
+      {/* Sub-modal de edición */}
       {editingVisit && (
         <EditVisitModal
           visit={editingVisit}
@@ -695,19 +694,16 @@ export default function VisitsModal({ task, user, onClose }) {
         />
       )}
 
-      {/* ── Modal principal ── */}
+      {/* Modal principal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-
-        {/* Overlay */}
         <div className="absolute inset-0"
           style={{ backgroundColor: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(2px)' }}
           onClick={onClose} />
 
-        {/* Dialog */}
         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
           style={{ maxHeight: '92vh' }}>
 
-          {/* ── CABECERA ── */}
+          {/* CABECERA */}
           <div className="flex-shrink-0 text-white"
             style={{ background: 'linear-gradient(135deg, #D61672 0%, #c01265 50%, #FFA901 100%)' }}>
 
@@ -728,7 +724,7 @@ export default function VisitsModal({ task, user, onClose }) {
               </button>
             </div>
 
-            {/* Chips de tarea */}
+            {/* Chips de datos de tarea */}
             <div className="px-5 pb-4 space-y-2">
               <div className="flex flex-wrap gap-2">
                 {task.serviceOrder && (
@@ -806,7 +802,7 @@ export default function VisitsModal({ task, user, onClose }) {
             </div>
           </div>
 
-          {/* ── CUERPO ── */}
+          {/* CUERPO */}
           <div className="flex-1 overflow-y-auto bg-slate-50">
             <div className="px-4 pt-4 pb-3">
               {!showAddForm ? (
@@ -844,7 +840,7 @@ export default function VisitsModal({ task, user, onClose }) {
             </div>
           </div>
 
-          {/* ── FOOTER ── */}
+          {/* FOOTER */}
           <div className="flex-shrink-0 px-5 py-3 border-t border-slate-100 bg-white flex items-center justify-between">
             <p className="text-xs text-slate-400">
               {visits.length} visita{visits.length !== 1 ? 's' : ''} en total
