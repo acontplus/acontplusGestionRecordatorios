@@ -2,14 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// ── Fecha local del navegador (evita desfase UTC en Ecuador UTC-5) ──────────
-function localDateStr() {
+// ── Fecha local del navegador (no UTC — corrige bug Ecuador UTC-5) ──────────
+const getLocalDate = () => {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 async function showSystemNotification(title, body, icon) {
   if (!('Notification' in window)) return;
@@ -26,47 +23,56 @@ async function showSystemNotification(title, body, icon) {
   }
 }
 
-// ── Visita programada más cercana de una tarea ────────────────────────────
-function getNextVisit(task) {
-  if (!task.visits?.length) return null;
+// ── Obtiene TODAS las visitas relevantes de una tarea (retrasadas, hoy, urgentes) ──
+function getRelevantVisits(task, today) {
+  if (!task.visits?.length) return [];
   return task.visits
     .filter(v => v.status === 'Programada')
-    .sort((a, b) => {
-      if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate.localeCompare(b.scheduledDate);
-      return (a.scheduledTime || '').localeCompare(b.scheduledTime || '');
-    })[0] || null;
+    .filter(v => {
+      const isOverdue = v.scheduledDate < today;
+      const isToday   = v.scheduledDate === today;
+      const isUrgent  = v.urgency === 'Alta';
+      return isOverdue || isToday || isUrgent;
+    })
+    .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
 }
 
-// ── Toast basado en la visita ─────────────────────────────────────────────
-function buildToast(task, visit, index) {
-  // Fecha LOCAL (no UTC) para comparación correcta en Ecuador UTC-5
-  const today     = localDateStr();
+// ── Construye un toast para una visita específica ──────────────────────────
+function buildToast(task, visit, id) {
+  const today     = getLocalDate();
   const isOverdue = visit.scheduledDate < today;
   const isToday   = visit.scheduledDate === today;
 
-  let type, title, body;
+  let type, title;
 
   if (isOverdue) {
     type  = 'overdue';
     title = '⚠️ Visita atrasada';
-    body  = `${task.clientName} — ${visit.type || 'Visita'} programada el ${visit.scheduledDate}`;
   } else if (isToday) {
     type  = 'today';
     title = '📅 Visita para hoy';
-    body  = `${task.clientName} — ${visit.type || 'Visita'}${visit.scheduledTime ? ' a las ' + visit.scheduledTime : ''}`;
   } else {
     type  = 'urgent';
     title = '🔴 Visita urgente';
-    body  = `${task.clientName} — ${visit.type || 'Visita'} el ${visit.scheduledDate}`;
   }
 
   return {
-    id:           `${task.id}-${visit.id}-${Date.now()}-${index}`,
+    id,
     type,
     title,
-    body,
-    observations: visit.observations || task.observations || '',
+    // Datos estructurados de la visita para el ToastItem
+    clientName:    task.clientName,
+    serviceOrder:  task.serviceOrder || '',
+    visitDate:     visit.scheduledDate,
+    visitTime:     visit.scheduledTime || '',
+    visitType:     visit.type || '',
+    urgency:       visit.urgency || '',
+    technician:    visit.technician || '',
+    observations:  visit.observations || '',
+    // Backward compat: body y task para acciones PDF/WhatsApp
+    body:          `${task.clientName}${visit.type ? ' — ' + visit.type : ''}`,
     task,
+    visit,
   };
 }
 
@@ -91,22 +97,19 @@ export function useNotifications(tasks) {
     return result;
   };
 
-  // ── showAlerts: recorre visitas dentro de cada tarea ───────────────────
+  // ── showAlerts: genera un item por cada visita relevante de cada tarea ──
   const showAlerts = useCallback(() => {
-    // Fecha LOCAL (no UTC)
-    const today   = localDateStr();
+    const today   = getLocalDate();
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     const alertItems = [];
-    pending.forEach((task, ti) => {
-      const visit = getNextVisit(task);
-      if (!visit) return;
-      const isOverdue = visit.scheduledDate < today;
-      const isToday   = visit.scheduledDate === today;
-      const isUrgent  = visit.urgency === 'Alta';
-      if (isOverdue || isToday || isUrgent) {
-        alertItems.push(buildToast(task, visit, ti));
-      }
+    pending.forEach((task) => {
+      const relevantVisits = getRelevantVisits(task, today);
+      relevantVisits.forEach((visit, vi) => {
+        alertItems.push(
+          buildToast(task, visit, `alert-${task.id}-${visit.id || vi}-${Date.now()}`)
+        );
+      });
     });
 
     if (alertItems.length === 0) {
@@ -115,67 +118,63 @@ export function useNotifications(tasks) {
         type:         'today',
         title:        '✅ Todo al día',
         body:         'No hay visitas urgentes ni atrasadas.',
+        clientName:   '',
         observations: '',
         task:         null,
+        visit:        null,
       }]);
       return;
     }
     setToasts(alertItems);
   }, [tasks]);
 
-  // ── Carga inicial y seguimiento basado en visitas ──────────────────────
+  // ── Carga inicial: genera toasts por cada visita relevante ────────────
   useEffect(() => {
     if (tasks.length === 0) return;
 
-    // Fecha LOCAL (no UTC) — corrección del bug de zona horaria Ecuador UTC-5
-    const today   = localDateStr();
+    const today   = getLocalDate();
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       const newToasts = [];
 
-      pending.forEach((task, index) => {
-        const visit = getNextVisit(task);
-        if (!visit) { notifiedIds.current.add(task.id); return; }
-
-        const isOverdue = visit.scheduledDate < today;
-        const isToday   = visit.scheduledDate === today;
-        const isUrgent  = visit.urgency === 'Alta';
-
-        if (!isOverdue && !isToday && !isUrgent) {
+      pending.forEach((task) => {
+        const relevantVisits = getRelevantVisits(task, today);
+        if (relevantVisits.length === 0) {
           notifiedIds.current.add(task.id);
           return;
         }
         if (notifiedIds.current.has(task.id)) return;
         notifiedIds.current.add(task.id);
 
-        const toast = buildToast(task, visit, index);
-        newToasts.push(toast);
-        setTimeout(() => showSystemNotification(toast.title, toast.body, '/logo.png'), index * 800);
+        relevantVisits.forEach((visit, vi) => {
+          const toast = buildToast(task, visit, `init-${task.id}-${visit.id || vi}-${Date.now()}`);
+          newToasts.push(toast);
+          setTimeout(
+            () => showSystemNotification(toast.title, toast.body, '/logo.png'),
+            newToasts.length * 800
+          );
+        });
       });
 
       if (newToasts.length > 0) setToasts(newToasts);
       return;
     }
 
-    // Tareas nuevas tras la carga inicial
-    pending.forEach((task, index) => {
+    // Tareas nuevas añadidas tras la carga inicial
+    pending.forEach((task) => {
       if (notifiedIds.current.has(task.id)) return;
 
-      const visit = getNextVisit(task);
-      if (!visit) { notifiedIds.current.add(task.id); return; }
-
-      const isOverdue = visit.scheduledDate < today;
-      const isToday   = visit.scheduledDate === today;
-      const isUrgent  = visit.urgency === 'Alta';
-
-      if (!isOverdue && !isToday && !isUrgent) return;
+      const relevantVisits = getRelevantVisits(task, today);
+      if (relevantVisits.length === 0) return;
 
       notifiedIds.current.add(task.id);
-      const toast = buildToast(task, visit, index);
-      setToasts(prev => [...prev, toast]);
-      showSystemNotification(toast.title, toast.body, '/logo.png');
+      relevantVisits.forEach((visit, vi) => {
+        const toast = buildToast(task, visit, `new-${task.id}-${visit.id || vi}-${Date.now()}`);
+        setToasts(prev => [...prev, toast]);
+        showSystemNotification(toast.title, toast.body, '/logo.png');
+      });
     });
   }, [tasks, permission]);
 
