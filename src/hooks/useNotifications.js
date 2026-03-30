@@ -2,6 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+// ── Fecha local del navegador (evita desfase UTC en Ecuador UTC-5) ──────────
+function localDateStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 async function showSystemNotification(title, body, icon) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
@@ -17,7 +26,7 @@ async function showSystemNotification(title, body, icon) {
   }
 }
 
-// ✅ Visita programada más cercana de una tarea
+// ── Visita programada más cercana de una tarea ────────────────────────────
 function getNextVisit(task) {
   if (!task.visits?.length) return null;
   return task.visits
@@ -28,9 +37,10 @@ function getNextVisit(task) {
     })[0] || null;
 }
 
-// ✅ Toast basado en la visita (no en task.dueDate)
+// ── Toast basado en la visita ─────────────────────────────────────────────
 function buildToast(task, visit, index) {
-  const today = new Date().toISOString().split('T')[0];
+  // Fecha LOCAL (no UTC) para comparación correcta en Ecuador UTC-5
+  const today     = localDateStr();
   const isOverdue = visit.scheduledDate < today;
   const isToday   = visit.scheduledDate === today;
 
@@ -51,7 +61,7 @@ function buildToast(task, visit, index) {
   }
 
   return {
-    id: `${task.id}-${visit.id}-${Date.now()}-${index}`,
+    id:           `${task.id}-${visit.id}-${Date.now()}-${index}`,
     type,
     title,
     body,
@@ -64,7 +74,7 @@ export function useNotifications(tasks) {
   const [permission, setPermission] = useState(
     'Notification' in window ? Notification.permission : 'denied'
   );
-  const [toasts, setToasts] = useState([]);
+  const [toasts,         setToasts]         = useState([]);
   const notifiedIds    = useRef(new Set());
   const hasInitialized = useRef(false);
 
@@ -81,9 +91,10 @@ export function useNotifications(tasks) {
     return result;
   };
 
-  // ✅ showAlerts: recorre visitas dentro de cada tarea
+  // ── showAlerts: recorre visitas dentro de cada tarea ───────────────────
   const showAlerts = useCallback(() => {
-    const today   = new Date().toISOString().split('T')[0];
+    // Fecha LOCAL (no UTC)
+    const today   = localDateStr();
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     const alertItems = [];
@@ -100,23 +111,24 @@ export function useNotifications(tasks) {
 
     if (alertItems.length === 0) {
       setToasts([{
-        id: `no-alerts-${Date.now()}`,
-        type: 'today',
-        title: '✅ Todo al día',
-        body: 'No hay visitas urgentes ni atrasadas.',
+        id:           `no-alerts-${Date.now()}`,
+        type:         'today',
+        title:        '✅ Todo al día',
+        body:         'No hay visitas urgentes ni atrasadas.',
         observations: '',
-        task: null,
+        task:         null,
       }]);
       return;
     }
     setToasts(alertItems);
   }, [tasks]);
 
-  // ✅ Carga inicial y seguimiento basado en visitas
+  // ── Carga inicial y seguimiento basado en visitas ──────────────────────
   useEffect(() => {
     if (tasks.length === 0) return;
 
-    const today   = new Date().toISOString().split('T')[0];
+    // Fecha LOCAL (no UTC) — corrección del bug de zona horaria Ecuador UTC-5
+    const today   = localDateStr();
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     if (!hasInitialized.current) {
