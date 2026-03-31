@@ -5,6 +5,7 @@ import {
   Edit, Printer, MessageCircle, RotateCcw, Ban, Settings
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
+import { getConfigStore, getEmpresaWhatsApp } from '../lib/configStore.js';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useTecnicos } from '../hooks/useTecnicos';
 import TiposVisitaForm from './TiposVisitaForm.jsx';
@@ -29,6 +30,10 @@ function formatDateOnly(dateStr) {
 
 // ─── PDF de una visita ─────────────────────────────────────────────────────
 function generateVisitPDF(task, visit) {
+  const cfg        = getConfigStore();
+  const logoSrc    = cfg.logoUrl || `${window.location.origin}/logo.png`;
+  const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
+  const sloganEmp  = cfg.empresaSlogan || 'Recordatorios';
   const statusColor  = { 'Programada': '#2563eb', 'Realizada': '#16a34a', 'Cancelada': '#6b7280', 'Anulada': '#dc2626' }[visit.status] || '#6b7280';
   const urgencyColor = { 'Alta': '#dc2626', 'Media': '#d97706', 'Baja': '#16a34a' }[visit.urgency] || '#6b7280';
 
@@ -84,8 +89,8 @@ function generateVisitPDF(task, visit) {
 <div class="page">
   <div class="header">
     <div class="header-brand">
-      <img src="${window.location.origin}/logo.png" alt="Acontplus"/>
-      <div><h1>ACONTPLUS</h1><p>Recordatorios</p><small>Facturar nunca fue tan fácil</small></div>
+      <img src="${logoSrc}" alt="${nombreEmp}"/>
+      <div><h1>${nombreEmp}</h1><p>${sloganEmp}</p></div>
     </div>
     <div class="header-right">
       <div class="doc-title">Ficha de Visita Técnica</div>
@@ -157,10 +162,10 @@ function generateVisitPDF(task, visit) {
   </div>
   <div class="footer">
     <div class="footer-left">
-      <img src="${window.location.origin}/logo.png" alt="Acontplus"/>
-      <div><div class="footer-brand">ACONTPLUS</div><div style="font-size:9px;color:#FFA901;font-weight:bold">Recordatorios</div></div>
+      <img src="${logoSrc}" alt="${nombreEmp}"/>
+      <div><div class="footer-brand">${nombreEmp}</div><div style="font-size:9px;color:#FFA901;font-weight:bold">${sloganEmp}</div></div>
     </div>
-    <div class="footer-right">Documento generado el ${formatDate(new Date().toISOString())}<br/>Acontplus Recordatorios</div>
+    <div class="footer-right">Documento generado el ${formatDate(new Date().toISOString())}<br/>${nombreEmp} ${sloganEmp}</div>
   </div>
 </div>
 </body>
@@ -176,8 +181,10 @@ export function printVisitPDF(task, visit) {
 
 // ─── WhatsApp de una visita ────────────────────────────────────────────────
 export function shareVisitWhatsApp(task, visit) {
+  const cfg        = getConfigStore();
+  const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
   const lines = [
-    `🔧 *ACONTPLUS RECORDATORIOS*`,
+    `🔧 *${nombreEmp.toUpperCase()}*`,
     `📋 *Aviso de Visita Técnica*`,
     `━━━━━━━━━━━━━━━━━━━━`,
     task.serviceOrder ? `🔖 *OS:* ${task.serviceOrder}` : '',
@@ -198,24 +205,29 @@ export function shareVisitWhatsApp(task, visit) {
       visit.closingObservations ? `• Obs: ${visit.closingObservations}`  : '',
     ].filter(Boolean).join('\n') : '',
     ``, `━━━━━━━━━━━━━━━━━━━━`,
-    `_Enviado desde Acontplus Recordatorios_`,
+    `_Enviado desde ${nombreEmp}_`,
   ].filter(l => l !== '').join('\n');
 
   const encoded = encodeURIComponent(lines);
-  const raw     = task.clientPhone ? task.clientPhone.replace(/\D/g, '') : '';
-  const phone   = raw.startsWith('0') ? raw.slice(1) : raw;
-  const url     = phone
-    ? `https://wa.me/593${phone}?text=${encoded}`
+  let destPhone = '';
+  if (task.clientPhone) {
+    const raw = task.clientPhone.replace(/\D/g, '');
+    destPhone = raw.startsWith('0') ? `593${raw.slice(1)}` : `593${raw}`;
+  } else {
+    destPhone = getEmpresaWhatsApp();
+  }
+  const url = destPhone
+    ? `https://wa.me/${destPhone}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
   window.open(url, '_blank');
 }
 
 // ─── Sub-modal de edición superpuesto (z-60) ───────────────────────────────
-function EditVisitModal({ visit, onSave, onClose, currentUser }) {
+function EditVisitModal({ visit, onSave, onClose, currentUser, tiposParaSelect, tecnicosParaSelect }) {
   const [formData, setFormData] = useState({
     scheduledDate: visit.scheduledDate || new Date().toISOString().split('T')[0],
     scheduledTime: visit.scheduledTime || '',
-    type:          visit.type          || TASK_TYPES[0],
+    type:          visit.type          || tiposParaSelect[0] || '',
     urgency:       visit.urgency       || 'Media',
     observations:  visit.observations  || '',
     technician:    visit.technician    || currentUser?.email || '',
@@ -285,7 +297,8 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
               <label className={lbl}><Wrench size={11} className="inline mr-1" />Tipo de visita</label>
               <select name="type" value={formData.type} onChange={handleChange}
                 className={inp} onFocus={foc} onBlur={blr}>
-                {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
+                <option value="">— Selecciona un tipo —</option>
+                {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
@@ -298,8 +311,13 @@ function EditVisitModal({ visit, onSave, onClose, currentUser }) {
           </div>
           <div>
             <label className={lbl}><User size={11} className="inline mr-1" />Técnico asignado</label>
-            <input type="text" name="technician" value={formData.technician} onChange={handleChange}
-              placeholder="Email o nombre del técnico" className={inp} onFocus={foc} onBlur={blr} />
+            <select name="technician" value={formData.technician} onChange={handleChange}
+              className={inp} onFocus={foc} onBlur={blr}>
+              <option value="">— Selecciona un técnico —</option>
+              {tecnicosParaSelect.map(t => (
+                <option key={t.id} value={t.nombre}>{t.nombre}{t.email ? ` (${t.email})` : ''}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={lbl}>Observaciones</label>
@@ -708,6 +726,8 @@ export default function VisitsModal({ task, user, onClose }) {
           onSave={handleSaveEdit}
           onClose={() => setEditingVisit(null)}
           currentUser={user}
+          tiposParaSelect={tiposParaSelect}
+          tecnicosParaSelect={tecnicosParaSelect}
         />
       )}
 

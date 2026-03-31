@@ -95,7 +95,7 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
           {initialData ? '✏️ Editar Tarea' : '➕ Nueva Tarea'}
         </h2>
         <p className="text-xs text-white text-opacity-80 mt-0.5">
-          {initialData ? 'Modifica los datos de la tarea' : 'Registra una nueva tarea de mantenimiento'}
+          {initialData ? 'Modifica los datos de la tarea' : 'Registra una nueva tarea'}
         </p>
       </div>
 

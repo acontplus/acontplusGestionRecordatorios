@@ -71,7 +71,7 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, user }) 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">Mantenimientos</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Tareas</h2>
         <div className="flex items-center space-x-2 text-sm text-slate-500">
           <span>{filteredTasks.length} de {tasks.length} registros</span>
         </div>

@@ -195,10 +195,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
             <h3 className="text-sm font-bold text-slate-800">
               {activeFilter ? filterLabels[activeFilter] : 'Todas las tareas activas'}
             </h3>
-            <span className="px-2 py-0.5 text-xs font-bold rounded-full text-white"
-              style={{ background: '#D61672' }}>
-              {filteredTasks.length}
-            </span>
+
           </div>
           <div className="flex items-center space-x-2">
             {activeFilter && (

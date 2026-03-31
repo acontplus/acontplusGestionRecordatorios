@@ -1,6 +1,13 @@
 // src/components/TaskPDF.jsx
+import { getConfigStore, getEmpresaWhatsApp } from '../lib/configStore.js';
 
 export function generateTaskPDF(task) {
+  // Leer configuración de empresa desde el store global
+  const cfg = getConfigStore();
+  const logoSrc    = cfg.logoUrl || `${window.location.origin}/logo.png`;
+  const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
+  const sloganEmp  = cfg.empresaSlogan || 'Recordatorios';
+
 
   const formatDate = (isoString) => {
     if (!isoString) return '—';
@@ -79,11 +86,6 @@ export function generateTaskPDF(task) {
       color: #FFA901;
       font-weight: bold;
       margin-top: 1px;
-    }
-    .brand-tag {
-      font-size: 9px;
-      color: #94a3b8;
-      margin-top: 2px;
     }
     .doc-info {
       text-align: right;
@@ -314,11 +316,10 @@ export function generateTaskPDF(task) {
   <!-- ── ENCABEZADO ── -->
   <div class="header">
     <div class="brand">
-      <img src="${window.location.origin}/logo.png" alt="Acontplus" />
+      <img src="${logoSrc}" alt="${nombreEmp}" />
       <div>
-        <div class="brand-name">ACONTPLUS</div>
-        <div class="brand-sub">Recordatorios</div>
-        <div class="brand-tag">Facturar nunca fue tan fácil</div>
+        <div class="brand-name">${nombreEmp}</div>
+        <div class="brand-sub">${sloganEmp}</div>
       </div>
     </div>
     <div class="doc-info">
@@ -425,15 +426,15 @@ export function generateTaskPDF(task) {
   <!-- ── PIE DE PÁGINA ── -->
   <div class="footer">
     <div class="footer-left">
-      <img src="${window.location.origin}/logo.png" alt="Acontplus" />
+      <img src="${logoSrc}" alt="${nombreEmp}" />
       <div>
-        <div class="footer-brand">ACONTPLUS</div>
-        <div class="footer-sub">Recordatorios</div>
+        <div class="footer-brand">${nombreEmp}</div>
+        <div class="footer-sub">${sloganEmp}</div>
       </div>
     </div>
     <div class="footer-right">
       Documento generado el ${formatDate(new Date().toISOString())}<br/>
-      Acontplus Recordatorios
+      ${nombreEmp} · ${sloganEmp}
     </div>
   </div>
 
@@ -459,8 +460,11 @@ export function shareViaWhatsApp(task) {
     return `${day}/${month}/${year}`;
   };
 
+  const cfg         = getConfigStore();
+  const empresaNom  = cfg.empresaNombre || 'ACONTPLUS';
+
   const message = [
-    `🔧 *ACONTPLUS RECORDATORIOS*`,
+    `🔧 *${empresaNom.toUpperCase()}*`,
     `📋 *Datos de Tarea*`,
     `━━━━━━━━━━━━━━━━━━━━`,
     task.serviceOrder ? `🔖 *OS:* ${task.serviceOrder}` : '',
@@ -483,14 +487,20 @@ export function shareViaWhatsApp(task) {
     ].filter(Boolean).join('\n') : '',
     ``,
     `━━━━━━━━━━━━━━━━━━━━`,
-    `_Enviado desde Acontplus Recordatorios_`,
+    `_Enviado desde ${empresaNom}_`,
   ].filter(l => l !== '').join('\n');
 
-  const encoded = encodeURIComponent(message);
-  const raw   = task.clientPhone ? task.clientPhone.replace(/\D/g, '') : '';
-  const phone = raw.startsWith('0') ? raw.slice(1) : raw;
-  const url   = phone
-    ? `https://wa.me/593${phone}?text=${encoded}`
+  const encoded     = encodeURIComponent(message);
+  // Número destino: teléfono del cliente → fallback al número de la empresa
+  let destPhone = '';
+  if (task.clientPhone) {
+    const raw = task.clientPhone.replace(/\D/g, '');
+    destPhone = raw.startsWith('0') ? `593${raw.slice(1)}` : `593${raw}`;
+  } else {
+    destPhone = getEmpresaWhatsApp();
+  }
+  const url = destPhone
+    ? `https://wa.me/${destPhone}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
 
   window.open(url, '_blank');

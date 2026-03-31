@@ -3,18 +3,6 @@ import { useState, useEffect } from 'react';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 
-// Tipos predeterminados que se usan como fallback si no hay datos en Firestore
-export const TIPOS_VISITA_DEFAULT = [
-  'Mantenimiento preventivo',
-  'Mantenimiento correctivo',
-  'Instalación',
-  'Revisión técnica',
-  'Cambio de filtros',
-  'Limpieza de equipo',
-  'Inspección',
-  'Otro',
-];
-
 export function useTiposVisita(user) {
   const [tipos, setTipos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,10 +46,8 @@ export function useTiposVisita(user) {
     }
   };
 
-  // Lista para usar en selects: si hay datos en Firestore los usa, si no, usa los predeterminados
-  const tiposParaSelect = tipos.length > 0
-    ? tipos.map(t => t.nombre)
-    : TIPOS_VISITA_DEFAULT;
+  // Lista de nombres para usar en selects — solo desde Firestore
+  const tiposParaSelect = tipos.map(t => t.nombre);
 
   return { tipos, tiposParaSelect, isLoading, addTipo, deleteTipo };
 }

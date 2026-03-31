@@ -1,0 +1,75 @@
+// src/hooks/useConfiguracion.js
+import { useState, useEffect } from 'react';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { setConfigStore } from '../lib/configStore.js';
+import { db, appId } from '../lib/firebase';
+
+const CONFIG_DOC_ID = 'config_empresa';
+
+export function useConfiguracion(user) {
+  const [config,    setConfig]    = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving,  setIsSaving]  = useState(false);
+  const [permError, setPermError] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Timeout de seguridad: si en 5s no responde, mostramos el form igual
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+      setPermError(true);
+    }, 5000);
+
+    const ref  = doc(db, 'artifacts', appId, 'public', 'data', 'configuracion', CONFIG_DOC_ID);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        clearTimeout(timeout);
+        const data = snap.exists() ? snap.data() : null;
+        setConfig(data);
+        if (data) setConfigStore(data); // sincroniza el store global
+        setIsLoading(false);
+        setPermError(false);
+      },
+      (error) => {
+        // Firestore denegó la lectura (reglas) u otro error de red
+        clearTimeout(timeout);
+        console.warn('useConfiguracion snapshot error:', error.code, error.message);
+        setIsLoading(false);
+        setPermError(error.code === 'permission-denied');
+      }
+    );
+
+    return () => {
+      clearTimeout(timeout);
+      unsub();
+    };
+  }, [user]);
+
+  const saveConfig = async (data) => {
+    if (!user) return false;
+    setIsSaving(true);
+    try {
+      const ref = doc(db, 'artifacts', appId, 'public', 'data', 'configuracion', CONFIG_DOC_ID);
+      await setDoc(ref, {
+        ...data,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.email,
+      }, { merge: true });
+      setPermError(false);
+      return true;
+    } catch (e) {
+      console.error('Error al guardar configuración:', e);
+      if (e.code === 'permission-denied') setPermError(true);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return { config, isLoading, isSaving, permError, saveConfig };
+}
