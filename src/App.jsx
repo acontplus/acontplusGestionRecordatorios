@@ -222,7 +222,12 @@ export default function App() {
         )}
         {activeTab === 'calendar' && (
           // ✅ Se añade el prop `user` para habilitar la creación de visitas desde el calendario
-          <CalendarView tasks={tasks} user={user} />
+          // ✅ Se añade `onNewTask` para navegar al formulario de nueva tarea desde el calendario
+          <CalendarView
+            tasks={tasks}
+            user={user}
+            onNewTask={() => { setEditingTask(null); setActiveTab('form'); }}
+          />
         )}
         {activeTab === 'reports' && (
           <Reports tasks={tasks} />

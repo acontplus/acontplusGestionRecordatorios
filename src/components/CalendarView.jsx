@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, Calendar, Clock, User,
   CalendarDays, Plus, X, Phone, MapPin, Wrench,
-  AlertCircle, CheckCircle, Loader2, FileText
+  AlertCircle, CheckCircle, Loader2, FileText, Search
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
 
@@ -674,9 +674,28 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
 
 // ─── Modal selector de tarea (para agregar visita desde un día vacío) ──────────
 
-function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
+function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask }) {
   const [selected, setSelected] = useState(null);
-  const activeTasks = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
+  const [search, setSearch]     = useState('');
+
+  // Activas, ordenadas de más reciente a más antigua por createdAt
+  const activeTasks = tasks
+    .filter(t => t.status !== 'Completado' && t.status !== 'Cancelado')
+    .sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const db2 = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return db2 - da;
+    });
+
+  // Filtro de búsqueda: cliente, OS o fecha de creación
+  const q = search.trim().toLowerCase();
+  const filteredTasks = q
+    ? activeTasks.filter(t =>
+        (t.clientName  || '').toLowerCase().includes(q) ||
+        (t.serviceOrder || '').toLowerCase().includes(q) ||
+        (t.createdAt   || '').slice(0, 10).includes(q)
+      )
+    : activeTasks;
 
   if (selected) {
     return (
@@ -692,6 +711,8 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+        {/* Header — sin botón extra, solo título y cerrar */}
         <div className="px-5 py-4 text-white flex items-center justify-between"
           style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
           <div>
@@ -705,17 +726,58 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
         </div>
 
         <div className="p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Selecciona la tarea
-          </p>
+          {/* Buscador */}
+          {activeTasks.length > 0 && (
+            <div className="relative mb-3">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por cliente, OS o fecha…"
+                className="w-full pl-7 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-pink-400 transition-colors bg-white"
+              />
+              {search && (
+                <button onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Contador */}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Selecciona la tarea
+            </p>
+            <span className="text-xs text-slate-400">
+              {filteredTasks.length} de {activeTasks.length} activa{activeTasks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
           {activeTasks.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <Calendar size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No hay tareas activas</p>
+              <p className="text-sm font-medium">No hay tareas activas</p>
+              <p className="text-xs mt-1 mb-4">Crea una tarea primero para poder agendar visitas</p>
+              <button
+                onClick={() => { onClose(); onNewTask(); }}
+                className="flex items-center gap-1.5 mx-auto px-4 py-2 text-white text-sm font-bold rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+              >
+                <Plus size={14} />
+                Crear nueva tarea
+              </button>
+            </div>
+          ) : filteredTasks.length === 0 ? (
+            <div className="text-center py-6 text-slate-400">
+              <Search size={28} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Sin resultados para <span className="font-semibold">"{search}"</span></p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-0.5">
-              {activeTasks.map(task => (
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
+              {filteredTasks.map(task => (
                 <button key={task.id} onClick={() => setSelected(task)}
                   className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-pink-300 hover:bg-pink-50 transition-colors">
 
@@ -743,7 +805,17 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
                     </div>
                   )}
 
-                  {/* Fecha de la tarea */}
+                  {/* Fecha de creación */}
+                  {task.createdAt && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Clock size={10} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-500">
+                        Creada: {formatDateOnly(task.createdAt.slice(0, 10))}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Fecha de vencimiento */}
                   {task.dueDate && (
                     <div className="flex items-center gap-1 mt-0.5">
                       <Calendar size={10} className="text-slate-400 flex-shrink-0" />
@@ -769,6 +841,17 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
               ))}
             </div>
           )}
+
+          {/* Botón Nueva tarea — siempre visible cuando hay tareas */}
+          {activeTasks.length > 0 && (
+            <button
+              onClick={() => { onClose(); onNewTask(); }}
+              className="w-full mt-3 flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-slate-200 hover:border-pink-300 hover:bg-pink-50 transition-colors text-xs font-semibold text-slate-400 hover:text-pink-600"
+            >
+              <Plus size={13} />
+              Crear nueva tarea
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -777,7 +860,7 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function CalendarView({ tasks, user }) {
+export default function CalendarView({ tasks, user, onNewTask }) {
   const today = new Date();
   const [viewMode, setViewMode]         = useState('month');
   const [currentDate, setCurrentDate]   = useState({
@@ -889,9 +972,19 @@ export default function CalendarView({ tasks, user }) {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-slate-700 capitalize">{title}</h3>
         {viewMode === 'week' && (
-          <p className="text-xs text-slate-400">
-            Haz clic en <span className="font-semibold" style={{ color: '#D61672' }}>+ Visita</span> en una tarjeta o en el <span className="font-semibold">+</span> del día para agendar
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-400">
+              Haz clic en <span className="font-semibold" style={{ color: '#D61672' }}>+ Visita</span> en una tarjeta o en el <span className="font-semibold">+</span> del día para agendar
+            </p>
+            <button
+              onClick={onNewTask}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+            >
+              <Plus size={13} />
+              Nueva tarea
+            </button>
+          </div>
         )}
       </div>
 
@@ -942,6 +1035,7 @@ export default function CalendarView({ tasks, user }) {
           defaultDate={dayPickerDate}
           user={user}
           onClose={() => setDayPickerDate(null)}
+          onNewTask={onNewTask}
         />
       )}
     </div>
