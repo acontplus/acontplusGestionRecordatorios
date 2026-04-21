@@ -1,14 +1,4 @@
-// src/components/TaskPDF.jsx
-import { getConfigStore, getEmpresaWhatsApp } from '../lib/configStore.js';
-
 export function generateTaskPDF(task) {
-  // Leer configuración de empresa desde el store global
-  const cfg = getConfigStore();
-  const logoSrc    = cfg.logoUrl || `${window.location.origin}/logo.png`;
-  const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
-  const sloganEmp  = cfg.empresaSlogan || 'Recordatorios';
-
-
   const formatDate = (isoString) => {
     if (!isoString) return '—';
     return new Date(isoString).toLocaleDateString('es-EC', {
@@ -17,6 +7,15 @@ export function generateTaskPDF(task) {
     });
   };
 
+  const formatDateOnly = (dateStr) => {
+    if (!dateStr) return '—';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  const today      = new Date().toISOString().split('T')[0];
+  const isOverdue  = task.dueDate < today && task.status !== 'Completado' && task.status !== 'Cancelado';
+
   const statusColor = {
     'Pendiente':  '#d97706',
     'En Proceso': '#2563eb',
@@ -24,433 +23,224 @@ export function generateTaskPDF(task) {
     'Cancelado':  '#6b7280',
   }[task.status] || '#6b7280';
 
-  const statusBg = {
-    'Pendiente':  '#fef3c7',
-    'En Proceso': '#dbeafe',
-    'Completado': '#dcfce7',
-    'Cancelado':  '#f1f5f9',
-  }[task.status] || '#f1f5f9';
+  const urgencyColor = {
+    'Alta':  '#dc2626',
+    'Media': '#d97706',
+    'Baja':  '#16a34a',
+  }[task.urgency] || '#6b7280';
 
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Datos Tarea - ${task.clientName || '—'}</title>
-  <style>
-    /* ── Reset ── */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Arial', sans-serif;
-      font-size: 12px;
-      color: #1e293b;
-      background: #fff;
-      line-height: 1.4;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Ficha de Mantenimiento - ${task.clientName}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; background: #fff; }
+        .page { max-width: 800px; margin: 0 auto; padding: 32px; }
 
-    /* ── Página ── */
-    .page {
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 36px 40px;
-    }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 4px solid #D61672; }
+        .header-brand { display: flex; align-items: center; gap: 12px; }
+        .header-brand img { width: 52px; height: 52px; object-fit: contain; }
+        .header-brand-text h1 { font-size: 20px; font-weight: bold; color: #D61672; letter-spacing: 0.05em; }
+        .header-brand-text p { font-size: 11px; color: #FFA901; font-weight: bold; }
+        .header-brand-text small { font-size: 10px; color: #64748b; }
+        .header-right { text-align: right; }
+        .header-right .doc-title { font-size: 14px; font-weight: bold; color: #1e293b; }
+        .header-right .doc-number { font-size: 16px; font-weight: bold; font-family: monospace; color: #D61672; margin: 2px 0; }
+        .header-right .doc-date { font-size: 10px; color: #64748b; }
 
-    /* ── Encabezado ── */
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 28px;
-      padding-bottom: 18px;
-      border-bottom: 3px solid #D61672;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .brand img {
-      width: 54px;
-      height: 54px;
-      object-fit: contain;
-    }
-    .brand-name {
-      font-size: 22px;
-      font-weight: bold;
-      color: #D61672;
-      letter-spacing: 0.06em;
-    }
-    .brand-sub {
-      font-size: 11px;
-      color: #FFA901;
-      font-weight: bold;
-      margin-top: 1px;
-    }
-    .doc-info {
-      text-align: right;
-    }
-    .doc-title {
-      font-size: 16px;
-      font-weight: bold;
-      color: #1e293b;
-      letter-spacing: 0.03em;
-    }
-    .doc-os {
-      font-size: 15px;
-      font-weight: bold;
-      font-family: monospace;
-      color: #D61672;
-      margin-top: 4px;
-    }
-    .doc-date {
-      font-size: 10px;
-      color: #64748b;
-      margin-top: 4px;
-    }
+        .status-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .status-card { flex: 1; min-width: 120px; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; }
+        .status-card .sc-label { font-size: 9px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+        .status-card .sc-value { font-size: 12px; font-weight: bold; }
 
-    /* ── Banner de estado ── */
-    .status-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 20px;
-      border-radius: 10px;
-      margin-bottom: 24px;
-      border: 1.5px solid;
-    }
-    .status-label {
-      font-size: 10px;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      opacity: 0.7;
-    }
-    .status-value {
-      font-size: 15px;
-      font-weight: bold;
-    }
-    .status-divider {
-      width: 1px;
-      height: 32px;
-      background: currentColor;
-      opacity: 0.2;
-    }
-    .status-col {
-      text-align: center;
-      flex: 1;
-    }
+        .section { margin-bottom: 18px; }
+        .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: #D61672; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1.5px solid #fce7f3; display: flex; align-items: center; gap: 6px; }
 
-    /* ── Secciones ── */
-    .section {
-      margin-bottom: 22px;
-    }
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 2px solid #fce7f3;
-    }
-    .section-icon {
-      font-size: 14px;
-    }
-    .section-title {
-      font-size: 11px;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #D61672;
-    }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 7px 10px; vertical-align: top; }
+        td.label { font-weight: bold; color: #475569; width: 28%; background: #fdf2f8; border: 1px solid #fce7f3; font-size: 11px; }
+        td.value { color: #1e293b; border: 1px solid #f1f5f9; }
+        td.value.mono { font-family: monospace; font-weight: bold; color: #7c3aed; font-size: 13px; }
+        td.value.highlight { font-weight: bold; color: #c2410c; background: #fff7ed; border-color: #fed7aa; }
 
-    /* ── Tabla de datos ── */
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .data-table td {
-      padding: 9px 14px;
-      vertical-align: middle;
-      font-size: 11px;
-      border: 1px solid #f1f5f9;
-    }
-    .data-table td.lbl {
-      background: #fdf2f8;
-      font-weight: bold;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-size: 10px;
-      width: 25%;
-      border-color: #fce7f3;
-    }
-    .data-table td.val {
-      color: #1e293b;
-      background: #fff;
-      font-size: 12px;
-    }
-    .data-table td.val.mono {
-      font-family: monospace;
-      font-weight: bold;
-      color: #7c3aed;
-      font-size: 13px;
-    }
-    .data-table tr:first-child td:first-child { border-radius: 8px 0 0 0; }
-    .data-table tr:last-child  td:last-child  { border-radius: 0 0 8px 0; }
+        .obs-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; min-height: 44px; color: #475569; line-height: 1.5; font-size: 11px; }
+        .obs-box.completion { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+        .obs-box.empty { color: #94a3b8; font-style: italic; }
 
-    /* ── Caja de texto ── */
-    .text-box {
-      background: #f8fafc;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 12px 16px;
-      min-height: 48px;
-      color: #374151;
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    .text-box.empty {
-      color: #94a3b8;
-      font-style: italic;
-    }
-    .text-box.closure-box {
-      background: #f0fdf4;
-      border-color: #bbf7d0;
-      color: #166534;
-    }
+        .closure { background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 18px; }
+        .closure-title { font-size: 10px; font-weight: bold; color: #166534; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
 
-    /* ── Cierre ── */
-    .closure-section {
-      background: #f0fdf4;
-      border: 1.5px solid #bbf7d0;
-      border-radius: 10px;
-      padding: 16px 20px;
-      margin-bottom: 22px;
-    }
-    .closure-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .closure-title {
-      font-size: 11px;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #16a34a;
-    }
-    .closure-table td {
-      background: #dcfce7;
-      border-color: #bbf7d0;
-    }
-    .closure-table td.lbl {
-      color: #166534;
-    }
+        .signature-area { display: flex; gap: 20px; margin-top: 8px; }
+        .signature-box { flex: 1; border-top: 1.5px solid #D61672; padding-top: 6px; text-align: center; font-size: 10px; color: #64748b; margin-top: 52px; }
 
-    /* ── Firmas ── */
-    .signature-area {
-      display: flex;
-      gap: 24px;
-      margin-top: 12px;
-    }
-    .signature-box {
-      flex: 1;
-      text-align: center;
-      font-size: 10px;
-      color: #64748b;
-      padding-top: 8px;
-      border-top: 1.5px solid #D61672;
-      margin-top: 60px;
-    }
+        .footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #D61672; display: flex; justify-content: space-between; align-items: center; }
+        .footer-left { display: flex; align-items: center; gap: 8px; }
+        .footer-left img { width: 24px; height: 24px; object-fit: contain; }
+        .footer-brand { font-size: 11px; font-weight: bold; color: #D61672; }
+        .footer-right { font-size: 10px; color: #94a3b8; text-align: right; }
 
-    /* ── Pie de página ── */
-    .footer {
-      margin-top: 28px;
-      padding-top: 14px;
-      border-top: 2px solid #D61672;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .footer-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .footer-left img {
-      width: 24px;
-      height: 24px;
-      object-fit: contain;
-    }
-    .footer-brand {
-      font-size: 11px;
-      font-weight: bold;
-      color: #D61672;
-    }
-    .footer-sub {
-      font-size: 9px;
-      color: #FFA901;
-      font-weight: bold;
-    }
-    .footer-right {
-      font-size: 10px;
-      color: #94a3b8;
-      text-align: right;
-      line-height: 1.5;
-    }
+        @media print {
+          body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          .page { padding: 20px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="page">
 
-    /* ── Impresión ── */
-    @media print {
-      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      .page { padding: 24px 28px; }
-    }
-  </style>
-</head>
-<body>
-<div class="page">
+        <!-- Header -->
+        <div class="header">
+          <div class="header-brand">
+            <img src="${window.location.origin}/logo.png" alt="Acontplus" />
+            <div class="header-brand-text">
+              <h1>ACONTPLUS</h1>
+              <p>Recordatorios</p>
+              <small>Facturar nunca fue tan fácil</small>
+            </div>
+          </div>
+          <div class="header-right">
+            <div class="doc-title">Ficha de Mantenimiento</div>
+            ${task.serviceOrder
+              ? `<div class="doc-number">OS: ${task.serviceOrder}</div>`
+              : `<div class="doc-number" style="color:#94a3b8">Sin orden asignada</div>`
+            }
+            <div class="doc-date">Generado: ${formatDate(new Date().toISOString())}</div>
+          </div>
+        </div>
 
-  <!-- ── ENCABEZADO ── -->
-  <div class="header">
-    <div class="brand">
-      <img src="${logoSrc}" alt="${nombreEmp}" />
-      <div>
-        <div class="brand-name">${nombreEmp}</div>
-        <div class="brand-sub">${sloganEmp}</div>
+        <!-- Estado, urgencia y tipo de instalación -->
+        <div class="status-row">
+          <div class="status-card">
+            <div class="sc-label">Estado</div>
+            <div class="sc-value" style="color:${statusColor}">${task.status}</div>
+          </div>
+          <div class="status-card">
+            <div class="sc-label">Urgencia</div>
+            <div class="sc-value" style="color:${urgencyColor}">${task.urgency || '—'}</div>
+          </div>
+          ${task.serviceType ? `
+          <div class="status-card" style="border-color:#fed7aa;background:#fff7ed;">
+            <div class="sc-label" style="color:#c2410c;">📦 Tipo inst./equipo</div>
+            <div class="sc-value" style="color:#c2410c;">${task.serviceType}</div>
+          </div>` : ''}
+          <div class="status-card">
+            <div class="sc-label">Fecha vencimiento</div>
+            <div class="sc-value" style="color:${isOverdue ? '#dc2626' : '#1e293b'}">
+              ${formatDateOnly(task.dueDate)} ${isOverdue ? '⚠️' : ''}
+            </div>
+          </div>
+        </div>
+
+        <!-- Datos del cliente -->
+        <div class="section">
+          <div class="section-title">👤 Datos del cliente</div>
+          <table>
+            <tr>
+              <td class="label">Nombre completo</td>
+              <td class="value">${task.clientName || '—'}</td>
+              <td class="label">Cédula / RUC</td>
+              <td class="value" style="font-family:monospace">${task.identification || '—'}</td>
+            </tr>
+            <tr>
+              <td class="label">Teléfono</td>
+              <td class="value">${task.clientPhone || '—'}</td>
+              <td class="label">Dirección</td>
+              <td class="value">${task.clientAddress || '—'}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Datos del servicio -->
+        <div class="section">
+          <div class="section-title">🔧 Datos del servicio</div>
+          <table>
+            <tr>
+              <td class="label">Orden de servicio</td>
+              <td class="value mono">${task.serviceOrder || '—'}</td>
+              <td class="label">Tipo visita</td>
+              <td class="value">${task.type || '—'}</td>
+            </tr>
+            <tr>
+              <td class="label">📦 Tipo inst./equipo/serv.</td>
+              <td class="value highlight" colspan="3">${task.serviceType || '—'}</td>
+            </tr>
+            <tr>
+              <td class="label">Fecha de registro</td>
+              <td class="value">${formatDate(task.createdAt)}</td>
+              <td class="label">Registrado por</td>
+              <td class="value">${task.createdBy || '—'}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Observaciones -->
+        <div class="section">
+          <div class="section-title">📝 Observaciones</div>
+          <div class="obs-box ${!task.observations ? 'empty' : ''}">
+            ${task.observations || 'Sin observaciones registradas'}
+          </div>
+        </div>
+
+        <!-- Datos de cierre -->
+        ${task.status === 'Completado' && task.completedAt ? `
+        <div class="closure">
+          <div class="closure-title">✅ Datos de cierre</div>
+          <table>
+            <tr>
+              <td class="label" style="background:#dcfce7;border-color:#bbf7d0">Completado por</td>
+              <td class="value" style="background:#dcfce7;border-color:#bbf7d0">${task.completedBy || '—'}</td>
+              <td class="label" style="background:#dcfce7;border-color:#bbf7d0">Fecha de cierre</td>
+              <td class="value" style="background:#dcfce7;border-color:#bbf7d0">${formatDate(task.completedAt)}</td>
+            </tr>
+          </table>
+          ${task.completionObservations ? `
+          <div style="margin-top:10px">
+            <div style="font-size:10px;font-weight:bold;color:#166534;margin-bottom:4px">Observación de cierre:</div>
+            <div class="obs-box completion">${task.completionObservations}</div>
+          </div>` : ''}
+        </div>` : ''}
+
+        <!-- Firmas -->
+        <div class="section">
+          <div class="section-title">✍️ Firmas</div>
+          <div class="signature-area">
+            <div class="signature-box">Firma del técnico</div>
+            <div class="signature-box">Firma del cliente / Recibí conforme</div>
+            <div class="signature-box">Nombre y cédula del cliente</div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+          <div class="footer-left">
+            <img src="${window.location.origin}/logo.png" alt="Acontplus" />
+            <div>
+              <div class="footer-brand">ACONTPLUS</div>
+              <div style="font-size:9px;color:#FFA901;font-weight:bold">Recordatorios</div>
+            </div>
+          </div>
+          <div class="footer-right">
+            Documento generado el ${formatDate(new Date().toISOString())}<br/>
+            Acontplus Recordatorios
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="doc-info">
-      <div class="doc-title">Datos Tarea</div>
-      ${task.serviceOrder
-        ? `<div class="doc-os">OS: ${task.serviceOrder}</div>`
-        : `<div class="doc-os" style="color:#94a3b8;font-size:12px">Sin orden de servicio</div>`
-      }
-      <div class="doc-date">Generado: ${formatDate(new Date().toISOString())}</div>
-    </div>
-  </div>
-
-  <!-- ── BANNER DE ESTADO ── -->
-  <div class="status-banner"
-    style="background:${statusBg}; border-color:${statusColor}; color:${statusColor}">
-    <div class="status-col">
-      <div class="status-label">Estado de la tarea</div>
-      <div class="status-value" style="color:${statusColor}">${task.status || '—'}</div>
-    </div>
-    <div class="status-divider"></div>
-    <div class="status-col">
-      <div class="status-label">Registrado por</div>
-      <div class="status-value" style="color:#1e293b;font-size:13px">${task.createdBy || '—'}</div>
-    </div>
-    <div class="status-divider"></div>
-    <div class="status-col">
-      <div class="status-label">Fecha de registro</div>
-      <div class="status-value" style="color:#1e293b;font-size:12px">${formatDate(task.createdAt)}</div>
-    </div>
-  </div>
-
-  <!-- ── DATOS DEL CLIENTE ── -->
-  <div class="section">
-    <div class="section-header">
-      <span class="section-icon">👤</span>
-      <span class="section-title">Datos del cliente</span>
-    </div>
-    <table class="data-table">
-      <tr>
-        <td class="lbl">Nombre completo</td>
-        <td class="val" colspan="3">${task.clientName || '—'}</td>
-      </tr>
-      <tr>
-        <td class="lbl">Cédula / RUC</td>
-        <td class="val" style="font-family:monospace">${task.identification || '—'}</td>
-        <td class="lbl">Teléfono</td>
-        <td class="val">${task.clientPhone || '—'}</td>
-      </tr>
-      <tr>
-        <td class="lbl">Dirección</td>
-        <td class="val" colspan="3">${task.clientAddress || '—'}</td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- ── OBSERVACIONES ── -->
-  <div class="section">
-    <div class="section-header">
-      <span class="section-icon">📝</span>
-      <span class="section-title">Observaciones</span>
-    </div>
-    <div class="text-box ${!task.observations ? 'empty' : ''}">
-      ${task.observations || 'Sin observaciones registradas'}
-    </div>
-  </div>
-
-  <!-- ── DATOS DE CIERRE (solo si está completado) ── -->
-  ${task.status === 'Completado' && task.completedAt ? `
-  <div class="closure-section">
-    <div class="closure-header">
-      <span style="font-size:16px">✅</span>
-      <span class="closure-title">Datos de cierre</span>
-    </div>
-    <table class="data-table closure-table">
-      <tr>
-        <td class="lbl" style="background:#dcfce7;border-color:#bbf7d0;color:#166534">Completado por</td>
-        <td class="val" style="background:#dcfce7;border-color:#bbf7d0">${task.completedBy || '—'}</td>
-        <td class="lbl" style="background:#dcfce7;border-color:#bbf7d0;color:#166534">Fecha de cierre</td>
-        <td class="val" style="background:#dcfce7;border-color:#bbf7d0">${formatDate(task.completedAt)}</td>
-      </tr>
-    </table>
-    ${task.completionObservations ? `
-    <div style="margin-top:12px">
-      <div style="font-size:10px;font-weight:bold;color:#166534;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
-        Observación de cierre
-      </div>
-      <div class="text-box closure-box">${task.completionObservations}</div>
-    </div>` : ''}
-  </div>` : ''}
-
-  <!-- ── FIRMAS ── -->
-  <div class="section">
-    <div class="section-header">
-      <span class="section-icon">✍️</span>
-      <span class="section-title">Firmas</span>
-    </div>
-    <div class="signature-area">
-      <div class="signature-box">Firma del técnico</div>
-      <div class="signature-box">Firma del cliente / Recibí conforme</div>
-      <div class="signature-box">Nombre y cédula del cliente</div>
-    </div>
-  </div>
-
-  <!-- ── PIE DE PÁGINA ── -->
-  <div class="footer">
-    <div class="footer-left">
-      <img src="${logoSrc}" alt="${nombreEmp}" />
-      <div>
-        <div class="footer-brand">${nombreEmp}</div>
-        <div class="footer-sub">${sloganEmp}</div>
-      </div>
-    </div>
-    <div class="footer-right">
-      Documento generado el ${formatDate(new Date().toISOString())}<br/>
-      ${nombreEmp} · ${sloganEmp}
-    </div>
-  </div>
-
-</div>
-</body>
-</html>`;
+    </body>
+    </html>
+  `;
 
   return html;
 }
 
 export function printTaskPDF(task) {
   const html = generateTaskPDF(task);
-  const w = window.open('', '_blank', 'width=900,height=700');
-  w.document.write(html);
-  w.document.close();
-  w.focus();
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
 }
 
 export function shareViaWhatsApp(task) {
@@ -460,24 +250,26 @@ export function shareViaWhatsApp(task) {
     return `${day}/${month}/${year}`;
   };
 
-  const cfg         = getConfigStore();
-  const empresaNom  = cfg.empresaNombre || 'ACONTPLUS';
-
   const message = [
-    `🔧 *${empresaNom.toUpperCase()}*`,
-    `📋 *Datos de Tarea*`,
+    `🔧 *ACONTPLUS RECORDATORIOS*`,
+    `📋 *Ficha de Mantenimiento*`,
     `━━━━━━━━━━━━━━━━━━━━`,
     task.serviceOrder ? `🔖 *OS:* ${task.serviceOrder}` : '',
     ``,
     `👤 *CLIENTE*`,
     `• Nombre: ${task.clientName}`,
     task.identification ? `• Cédula/RUC: ${task.identification}` : '',
-    task.clientPhone    ? `• Teléfono: ${task.clientPhone}`    : '',
-    task.clientAddress  ? `• Dirección: ${task.clientAddress}` : '',
+    task.clientPhone    ? `• Teléfono: ${task.clientPhone}`      : '',
+    task.clientAddress  ? `• Dirección: ${task.clientAddress}`   : '',
     ``,
     `🔧 *SERVICIO*`,
+    task.serviceType ? `📦 *Tipo instalación/equipo:* ${task.serviceType}` : '', // ← nuevo
+    `• Tipo visita: ${task.type || '—'}`,
+    task.equipment  ? `• Equipo: ${task.equipment}` : '',
+    `• Urgencia: ${task.urgency || '—'}`,
     `• Estado: ${task.status}`,
-    task.observations   ? `\n📝 *Observaciones:*\n${task.observations}` : '',
+    `• Vence: ${formatDateOnly(task.dueDate)}`,
+    task.observations ? `\n📝 *Observaciones:*\n${task.observations}` : '',
     task.status === 'Completado' && task.completedAt ? [
       ``,
       `✅ *CIERRE*`,
@@ -487,20 +279,13 @@ export function shareViaWhatsApp(task) {
     ].filter(Boolean).join('\n') : '',
     ``,
     `━━━━━━━━━━━━━━━━━━━━`,
-    `_Enviado desde ${empresaNom}_`,
-  ].filter(l => l !== '').join('\n');
+    `_Enviado desde Acontplus Recordatorios_`,
+  ].filter(line => line !== '').join('\n');
 
-  const encoded     = encodeURIComponent(message);
-  // Número destino: teléfono del cliente → fallback al número de la empresa
-  let destPhone = '';
-  if (task.clientPhone) {
-    const raw = task.clientPhone.replace(/\D/g, '');
-    destPhone = raw.startsWith('0') ? `593${raw.slice(1)}` : `593${raw}`;
-  } else {
-    destPhone = getEmpresaWhatsApp();
-  }
-  const url = destPhone
-    ? `https://wa.me/${destPhone}?text=${encoded}`
+  const encoded = encodeURIComponent(message);
+  const phone   = task.clientPhone ? task.clientPhone.replace(/\D/g, '') : '';
+  const url     = phone
+    ? `https://wa.me/593${phone.startsWith('0') ? phone.slice(1) : phone}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
 
   window.open(url, '_blank');

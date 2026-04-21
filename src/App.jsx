@@ -4,6 +4,7 @@ import { auth } from './lib/firebase';
 import { useTasks } from './hooks/useTasks';
 import { useNotifications } from './hooks/useNotifications';
 import { useClients } from './hooks/useClients';
+import { useServiceTypes } from './hooks/useServiceTypes';
 import Login from './components/Login.jsx';
 import NavItem from './components/NavItem.jsx';
 import Dashboard from './components/Dashboard.jsx';
@@ -28,6 +29,7 @@ export default function App() {
 
   const { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted } = useTasks(user);
   const { clients, saveClient } = useClients(user);
+  const { serviceTypes } = useServiceTypes(user);
   const {
     permission: notificationPermission,
     requestPermission: requestNotifications,
@@ -218,6 +220,8 @@ export default function App() {
             statuses={STATUSES}
             onCancel={() => setActiveTab('list')}
             clients={clients}
+            serviceTypes={serviceTypes}
+            user={user}
           />
         )}
         {activeTab === 'calendar' && (

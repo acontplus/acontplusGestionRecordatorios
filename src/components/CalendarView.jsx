@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, Calendar, Clock, User,
   CalendarDays, Plus, X, Phone, MapPin, Wrench,
-  AlertCircle, CheckCircle, Loader2, FileText, Search
+  AlertCircle, CheckCircle, Loader2, FileText, Search, Package
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
 
@@ -275,6 +275,12 @@ function AddVisitInlineForm({ task, user, defaultDate, onClose }) {
 
         {/* Panel informativo de la tarea */}
         <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 space-y-1.5">
+          {task.serviceType && (
+            <div className="flex items-center gap-2">
+              <Package size={12} className="text-orange-500 flex-shrink-0" />
+              <span className="text-xs font-bold text-orange-700 truncate">{task.serviceType}</span>
+            </div>
+          )}
           {task.serviceOrder && (
             <div className="flex items-center gap-2">
               <FileText size={12} className="text-slate-400 flex-shrink-0" />
@@ -295,7 +301,7 @@ function AddVisitInlineForm({ task, user, defaultDate, onClose }) {
               <p className="text-xs text-slate-500 italic leading-relaxed">{task.observations}</p>
             </div>
           )}
-          {!task.serviceOrder && !task.dueDate && !task.observations && (
+          {!task.serviceType && !task.serviceOrder && !task.dueDate && !task.observations && (
             <p className="text-xs text-slate-400 italic">Sin datos adicionales de la tarea</p>
           )}
         </div>
