@@ -11,11 +11,12 @@ import Dashboard from './components/Dashboard.jsx';
 import TaskList from './components/TaskList.jsx';
 import TaskForm from './components/TaskForm.jsx';
 import Reports from './components/Reports.jsx';
+import VisitsReport from './components/VisitsReport.jsx';
 import Toast from './components/Toast.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import {
   Home, Wrench, FileText, Plus, Bell, BellOff,
-  Cloud, CloudOff, LogOut, CalendarDays
+  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList
 } from 'lucide-react';
 
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
@@ -134,6 +135,12 @@ export default function App() {
             isActive={activeTab === 'reports'}
             onClick={() => setActiveTab('reports')}
           />
+          <NavItem
+            icon={<ClipboardList />}
+            label="Visitas"
+            isActive={activeTab === 'visits-report'}
+            onClick={() => setActiveTab('visits-report')}
+          />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -235,6 +242,9 @@ export default function App() {
         )}
         {activeTab === 'reports' && (
           <Reports tasks={tasks} />
+        )}
+        {activeTab === 'visits-report' && (
+          <VisitsReport tasks={tasks} />
         )}
       </main>
 

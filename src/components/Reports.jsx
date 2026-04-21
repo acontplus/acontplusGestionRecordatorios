@@ -3,10 +3,15 @@ import { Filter, X, ChevronDown, ChevronUp, Download, FileText, Search } from 'l
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 
+// ✅ Fecha local (no UTC) — evita desfase en Ecuador (UTC-5) y zonas similares
+const localDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
 const INITIAL_FILTERS = {
   search: '',
   status: 'Todos',
   urgency: 'Todos',
+  serviceType: 'Todos',   // ← nuevo
   serviceOrder: '',
   createdBy: '',
   dateFrom: '',
@@ -52,7 +57,7 @@ function exportToCSV(tasks) {
   const url  = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href  = url;
-  link.download = `reporte_mantenimientos_${new Date().toISOString().split('T')[0]}.csv`;
+  link.download = `reporte_mantenimientos_${localDateStr()}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -115,7 +120,7 @@ function exportToExcel(tasks) {
   const url  = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href  = url;
-  link.download = `reporte_mantenimientos_${new Date().toISOString().split('T')[0]}.xls`;
+  link.download = `reporte_mantenimientos_${localDateStr()}.xls`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -136,12 +141,17 @@ export default function Reports({ tasks }) {
   };
 
   const activeFilterCount = Object.entries(filters).filter(([key, val]) =>
-    key === 'status' || key === 'urgency' ? val !== 'Todos' : val !== ''
+    key === 'status' || key === 'urgency' || key === 'serviceType' ? val !== 'Todos' : val !== ''
   ).length;
 
   const uniqueUsers = useMemo(() => {
     const users = tasks.map(t => t.createdBy).filter(Boolean);
     return [...new Set(users)];
+  }, [tasks]);
+
+  const uniqueServiceTypes = useMemo(() => {
+    const types = tasks.map(t => t.serviceType).filter(Boolean);
+    return [...new Set(types)].sort();
   }, [tasks]);
 
   const filteredTasks = useMemo(() => {
@@ -151,8 +161,9 @@ export default function Reports({ tasks }) {
                 !task.serviceOrder?.toLowerCase().includes(q) &&
                 !task.serviceType?.toLowerCase().includes(q)) return false;
       if (filters.serviceOrder && !task.serviceOrder?.toLowerCase().includes(filters.serviceOrder.toLowerCase())) return false;
-      if (filters.status  !== 'Todos' && task.status  !== filters.status)  return false;
-      if (filters.urgency !== 'Todos' && task.urgency !== filters.urgency) return false;
+      if (filters.status      !== 'Todos' && task.status      !== filters.status)      return false;
+      if (filters.urgency     !== 'Todos' && task.urgency     !== filters.urgency)     return false;
+      if (filters.serviceType !== 'Todos' && task.serviceType !== filters.serviceType) return false;
       if (filters.createdBy && task.createdBy !== filters.createdBy) return false;
       if (filters.dateFrom) {
         const created = task.createdAt?.split('T')[0];
@@ -264,6 +275,14 @@ export default function Reports({ tasks }) {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Tipo inst./equipo/servicio</label>
+              <select value={filters.serviceType} onChange={e => handleFilter('serviceType', e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="Todos">Todos</option>
+                {uniqueServiceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Urgencia</label>
               <select value={filters.urgency} onChange={e => handleFilter('urgency', e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white">
@@ -318,7 +337,7 @@ export default function Reports({ tasks }) {
                 </tr>
               )}
               {reportPagination.paginatedItems.map(task => {
-                const today     = new Date().toISOString().split('T')[0];
+                const today     = localDateStr();
                 const isOverdue = task.dueDate < today && task.status !== 'Completado' && task.status !== 'Cancelado';
                 return (
                   <tr key={task.id} className="hover:bg-slate-50">

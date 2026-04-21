@@ -21,6 +21,14 @@ const TASK_TYPES = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// ✅ Usa fecha LOCAL (no UTC) para evitar desfase en zonas UTC-N (ej: Ecuador UTC-5)
+function localDateStr(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function formatDateOnly(dateStr) {
   if (!dateStr) return '—';
   const [y, m, d] = dateStr.split('-');
@@ -216,7 +224,7 @@ function WeekEventCard({ event, onClick, onAddVisit }) {
 function AddVisitInlineForm({ task, user, defaultDate, onClose }) {
   const { addVisit, isLoading } = useVisits(task, user);
   const [form, setForm] = useState({
-    scheduledDate: defaultDate || new Date().toISOString().split('T')[0],
+    scheduledDate: defaultDate || localDateStr(),
     scheduledTime: '',
     type: TASK_TYPES[0],
     urgency: 'Media',
@@ -384,7 +392,7 @@ function AddVisitInlineForm({ task, user, defaultDate, onClose }) {
 function MonthView({ year, month, events, onEventClick, onAddVisitToTask }) {
   const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today       = new Date().toISOString().split('T')[0];
+  const today       = localDateStr();
 
   const cells = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
@@ -446,10 +454,10 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
     return d;
   });
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
 
   const getEventsForDay = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = localDateStr(date);
     return events.filter(e => e.date === dateStr)
       .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   };
@@ -463,7 +471,7 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
       {/* Cabecera días */}
       <div className="grid grid-cols-7 border-b border-slate-200">
         {weekDays.map((date, idx) => {
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = localDateStr(date);
           const isToday = dateStr === todayStr;
           const dayEventCount = getEventsForDay(date).length;
           return (
@@ -490,7 +498,7 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
       <div className="grid grid-cols-7" style={{ minHeight: colMinHeight }}>
         {weekDays.map((date, idx) => {
           const dayEvents = getEventsForDay(date);
-          const dateStr   = date.toISOString().split('T')[0];
+          const dateStr   = localDateStr(date);
           const isToday   = dateStr === todayStr;
 
           return (
@@ -549,6 +557,26 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
               </p>
               <h3 className="font-bold text-base mt-0.5 truncate">{event.title}</h3>
               <p className="text-xs opacity-80 mt-0.5">{event.subtitle}</p>
+
+              {/* Orden de servicio + Tipo instalación */}
+              {(task?.serviceOrder || task?.serviceType) && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {task?.serviceOrder && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-bold text-white"
+                      style={{ background: 'rgba(255,255,255,0.25)' }}>
+                      <FileText size={10} />
+                      OS: {task.serviceOrder}
+                    </span>
+                  )}
+                  {task?.serviceType && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold text-white"
+                      style={{ background: 'rgba(255,255,255,0.20)' }}>
+                      <Package size={10} />
+                      {task.serviceType}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <button onClick={onClose}
               className="p-1.5 text-white opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-20 rounded-lg ml-3 flex-shrink-0">
@@ -602,12 +630,7 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
                   </div>
                 </div>
               )}
-              {task?.observations && (
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
-                  <p className="text-xs text-amber-600 font-semibold uppercase mb-1">Observaciones</p>
-                  <p className="text-sm text-amber-800">{task.observations}</p>
-                </div>
-              )}
+              {/* ✅ Observaciones eliminadas del cuerpo */}
             </>
           )}
 
@@ -647,6 +670,7 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
                   <p className="text-sm text-slate-700">{event.visit.observations}</p>
                 </div>
               )}
+              {/* ✅ Observaciones de visita eliminadas del cuerpo */}
               {event.visit?.closingObservations && (
                 <div className="bg-green-50 border border-green-100 rounded-xl p-3">
                   <p className="text-xs text-green-600 font-semibold uppercase mb-1">Cierre</p>
@@ -905,7 +929,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
   // Abre el formulario de agregar visita (con tarea ya elegida)
   const handleAddVisitToTask = (task, defaultDate) => {
     setSelectedEvent(null);
-    setAddVisitContext({ task, defaultDate: defaultDate || new Date().toISOString().split('T')[0] });
+    setAddVisitContext({ task, defaultDate: defaultDate || localDateStr() });
   };
 
   // Abre el selector de tarea primero (clic en + de un día)

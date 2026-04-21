@@ -7,6 +7,10 @@ import StatCard from './StatCard.jsx';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 
+// ✅ Fecha local (no UTC) — evita desfase en Ecuador (UTC-5) y zonas similares
+const localDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
 const URGENCY_ORDER = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
 
 function getNextVisit(task) {
@@ -40,7 +44,7 @@ function formatDateOnly(dateStr) {
 
 export default function Dashboard({ tasks, onNavigate, notificationPermission, onRequestNotifications, onShowAlerts, user }) {
   const [activeFilter, setActiveFilter] = useState(null);
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
 
   const enrichedTasks = tasks
     .filter(t => t.status !== 'Completado' && t.status !== 'Cancelado')
