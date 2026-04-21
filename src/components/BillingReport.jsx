@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import {
   Filter, X, ChevronDown, ChevronUp, Download,
   FileText, Search, Calendar, DollarSign,
-  CheckCircle, AlertCircle, Package, Banknote
+  CheckCircle, AlertCircle, Package, Banknote, Settings
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
 import { calcPaymentSummary } from '../services/visitBilling.js';
+import { exportCSV, exportExcel } from '../services/exportService.js';
 
 const localDateStr = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -48,84 +49,16 @@ function PayStatusBadge({ summary, commitmentDate }) {
   return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Pendiente</span>;
 }
 
-// ─── Exportar CSV ─────────────────────────────────────────────────────────────
-function exportToCSV(rows) {
-  const headers = [
-    'Fecha visita','Cliente','OS','Tipo inst./equipo','Tipo visita','Estado visita',
-    'Valor cobrar','Total abonado','Saldo','Estado cobro','Fecha compromiso',
-    'Formas de pago',
-  ];
-  const data = rows.map(({ task, visit, summary }) => [
-    formatDateOnly(visit.scheduledDate),
-    task.clientName || '',
-    task.serviceOrder || '',
-    task.serviceType || '',
-    visit.type || '',
-    visit.status || '',
-    summary.total > 0 ? summary.total.toFixed(2) : '',
-    summary.abonado.toFixed(2),
-    summary.saldo.toFixed(2),
-    summary.pagado ? 'Pagado' : summary.abonado > 0 ? 'Abono parcial' : summary.total === 0 ? 'Sin valor' : 'Pendiente',
-    visit.commitmentDate || '',
-    (visit.payments || []).map(p => `${p.method}:$${p.amount}`).join(' | '),
-  ]);
-  const csv = [headers, ...data]
-    .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `cobros_visitas_${localDateStr()}.csv`; a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportToExcel(rows) {
-  const headers = [
-    'Fecha visita','Cliente','OS','Tipo inst./equipo','Tipo visita','Estado visita',
-    'Valor cobrar','Total abonado','Saldo','Estado cobro','Fecha compromiso',
-    'Formas de pago',
-  ];
-  const data = rows.map(({ task, visit, summary }) => [
-    formatDateOnly(visit.scheduledDate),
-    task.clientName || '',
-    task.serviceOrder || '',
-    task.serviceType || '',
-    visit.type || '',
-    visit.status || '',
-    summary.total > 0 ? summary.total.toFixed(2) : '',
-    summary.abonado.toFixed(2),
-    summary.saldo.toFixed(2),
-    summary.pagado ? 'Pagado' : summary.abonado > 0 ? 'Abono parcial' : summary.total === 0 ? 'Sin valor' : 'Pendiente',
-    visit.commitmentDate || '',
-    (visit.payments || []).map(p => `${p.method}:$${p.amount}`).join(' | '),
-  ]);
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-  <head><meta charset="UTF-8">
-  <style>th{background:#1e40af;color:#fff;font-weight:bold;padding:8px}
-  td{padding:6px 8px;border:1px solid #e2e8f0}
-  tr:nth-child(even) td{background:#f8fafc}</style></head>
-  <body><table>
-  <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
-  <tbody>${data.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table></body></html>`;
-  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `cobros_visitas_${localDateStr()}.xls`; a.click();
-  URL.revokeObjectURL(url);
-}
-
 // ─── Componente principal ─────────────────────────────────────────────────────
 const INITIAL_FILTERS = {
   search:      '',
   dateFrom:    '',
   dateTo:      '',
   serviceType: 'Todos',
-  payStatus:   'Todos',   // 'Pagado' | 'Abono parcial' | 'Pendiente' | 'Sin valor' | 'Compromiso'
+  payStatus:   'Todos',
 };
 
-export default function BillingReport({ tasks, onTasksUpdate, user }) {
+export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig, onOpenConfig }) {
   const [filters,        setFilters]        = useState(INITIAL_FILTERS);
   const [showFilters,    setShowFilters]    = useState(true);
   const [showExport,     setShowExport]     = useState(false);
@@ -203,26 +136,34 @@ export default function BillingReport({ tasks, onTasksUpdate, user }) {
             {allRows.length !== filteredRows.length && ` de ${allRows.length} en total`}
           </p>
         </div>
-        <div className="relative">
-          <button onClick={() => setShowExport(!showExport)}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
-            <Download size={16} /><span>Exportar</span><ChevronDown size={14} />
+        <div className="flex items-center gap-2">
+          <button onClick={onOpenConfig}
+            className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+            title="Configurar columnas de exportación">
+            <Settings size={15} />
+            <span className="hidden sm:inline">Columnas</span>
           </button>
-          {showExport && (
-            <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-10 overflow-hidden">
-              <button onClick={() => { exportToExcel(filteredRows); setShowExport(false); }}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm">
-                <div className="p-1.5 bg-green-100 rounded"><FileText size={13} className="text-green-600" /></div>
-                Excel (.xls)
-              </button>
-              <div className="border-t border-slate-100" />
-              <button onClick={() => { exportToCSV(filteredRows); setShowExport(false); }}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm">
-                <div className="p-1.5 bg-blue-100 rounded"><FileText size={13} className="text-blue-600" /></div>
-                CSV
-              </button>
-            </div>
-          )}
+          <div className="relative">
+            <button onClick={() => setShowExport(!showExport)}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+              <Download size={16} /><span>Exportar</span><ChevronDown size={14} />
+            </button>
+            {showExport && (
+              <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-10 overflow-hidden">
+                <button onClick={() => { exportExcel('billing', exportConfig, filteredRows); setShowExport(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm">
+                  <div className="p-1.5 bg-green-100 rounded"><FileText size={13} className="text-green-600" /></div>
+                  <div><p className="font-medium text-slate-700">Excel (.xls)</p><p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p></div>
+                </button>
+                <div className="border-t border-slate-100" />
+                <button onClick={() => { exportCSV('billing', exportConfig, filteredRows); setShowExport(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm">
+                  <div className="p-1.5 bg-blue-100 rounded"><FileText size={13} className="text-blue-600" /></div>
+                  <div><p className="font-medium text-slate-700">CSV</p><p className="text-xs text-slate-400">Compatible con todo</p></div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

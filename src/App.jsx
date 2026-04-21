@@ -5,6 +5,7 @@ import { useTasks } from './hooks/useTasks';
 import { useNotifications } from './hooks/useNotifications';
 import { useClients } from './hooks/useClients';
 import { useServiceTypes } from './hooks/useServiceTypes';
+import { useExportConfig } from './hooks/useExportConfig.js';
 import Login from './components/Login.jsx';
 import NavItem from './components/NavItem.jsx';
 import Dashboard from './components/Dashboard.jsx';
@@ -13,6 +14,7 @@ import TaskForm from './components/TaskForm.jsx';
 import Reports from './components/Reports.jsx';
 import VisitsReport from './components/VisitsReport.jsx';
 import BillingReport from './components/BillingReport.jsx';
+import ExportConfigManager from './components/ExportConfigManager.jsx';
 import Toast from './components/Toast.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import {
@@ -23,15 +25,24 @@ import {
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [editingTask, setEditingTask] = useState(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [activeTab,        setActiveTab]        = useState('dashboard');
+  const [user,             setUser]             = useState(null);
+  const [isLoading,        setIsLoading]        = useState(true);
+  const [editingTask,      setEditingTask]      = useState(null);
+  const [isOnline,         setIsOnline]         = useState(navigator.onLine);
+  const [showExportConfig, setShowExportConfig] = useState(false);
 
   const { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted } = useTasks(user);
-  const { clients, saveClient } = useClients(user);
-  const { serviceTypes } = useServiceTypes(user);
+  const { clients, saveClient }   = useClients(user);
+  const { serviceTypes }          = useServiceTypes(user);
+  const {
+    configs:      exportConfigs,
+    isLoading:    configLoading,
+    saveConfig,
+    resetConfig,
+    getActiveColumns,
+  } = useExportConfig(user);
+
   const {
     permission: notificationPermission,
     requestPermission: requestNotifications,
@@ -113,48 +124,13 @@ export default function App() {
             </div>
           </div>
 
-          <NavItem
-            icon={<Home />}
-            label="Panel"
-            isActive={activeTab === 'dashboard'}
-            onClick={() => setActiveTab('dashboard')}
-          />
-          <NavItem
-            icon={<Wrench />}
-            label="Tareas"
-            isActive={activeTab === 'list'}
-            onClick={() => setActiveTab('list')}
-          />
-          <NavItem
-            icon={<Plus />}
-            label="Nueva"
-            isActive={activeTab === 'form'}
-            onClick={() => { setEditingTask(null); setActiveTab('form'); }}
-          />
-          <NavItem
-            icon={<CalendarDays />}
-            label="Calendario"
-            isActive={activeTab === 'calendar'}
-            onClick={() => setActiveTab('calendar')}
-          />
-          <NavItem
-            icon={<FileText />}
-            label="Reportes"
-            isActive={activeTab === 'reports'}
-            onClick={() => setActiveTab('reports')}
-          />
-          <NavItem
-            icon={<ClipboardList />}
-            label="Visitas"
-            isActive={activeTab === 'visits-report'}
-            onClick={() => setActiveTab('visits-report')}
-          />
-          <NavItem
-            icon={<Wallet />}
-            label="Cobros"
-            isActive={activeTab === 'billing'}
-            onClick={() => setActiveTab('billing')}
-          />
+          <NavItem icon={<Home />}         label="Panel"      isActive={activeTab === 'dashboard'}     onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<Wrench />}       label="Tareas"     isActive={activeTab === 'list'}          onClick={() => setActiveTab('list')} />
+          <NavItem icon={<Plus />}         label="Nueva"      isActive={activeTab === 'form'}          onClick={() => { setEditingTask(null); setActiveTab('form'); }} />
+          <NavItem icon={<CalendarDays />} label="Calendario" isActive={activeTab === 'calendar'}      onClick={() => setActiveTab('calendar')} />
+          <NavItem icon={<FileText />}     label="Reportes"   isActive={activeTab === 'reports'}       onClick={() => setActiveTab('reports')} />
+          <NavItem icon={<ClipboardList />} label="Visitas"    isActive={activeTab === 'visits-report'} onClick={() => setActiveTab('visits-report')} />
+          <NavItem icon={<Wallet />}       label="Cobros"     isActive={activeTab === 'billing'}       onClick={() => setActiveTab('billing')} />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -193,9 +169,7 @@ export default function App() {
             <button
               onClick={notificationPermission === 'granted' ? showAlerts : requestNotifications}
               className={`p-2 rounded-full transition-colors ${
-                notificationPermission === 'granted'
-                  ? 'bg-pink-50'
-                  : 'text-slate-400 bg-slate-100'
+                notificationPermission === 'granted' ? 'bg-pink-50' : 'text-slate-400 bg-slate-100'
               }`}
               style={notificationPermission === 'granted' ? { color: '#D61672' } : {}}
               title={notificationPermission === 'granted' ? 'Alertas activadas' : 'Activar alertas'}
@@ -246,8 +220,6 @@ export default function App() {
           />
         )}
         {activeTab === 'calendar' && (
-          // ✅ Se añade el prop `user` para habilitar la creación de visitas desde el calendario
-          // ✅ Se añade `onNewTask` para navegar al formulario de nueva tarea desde el calendario
           <CalendarView
             tasks={tasks}
             user={user}
@@ -255,18 +227,43 @@ export default function App() {
           />
         )}
         {activeTab === 'reports' && (
-          <Reports tasks={tasks} />
+          <Reports
+            tasks={tasks}
+            exportConfig={getActiveColumns('tasks')}
+            onOpenConfig={() => setShowExportConfig(true)}
+          />
         )}
         {activeTab === 'visits-report' && (
-          <VisitsReport tasks={tasks} />
+          <VisitsReport
+            tasks={tasks}
+            exportConfig={getActiveColumns('visits')}
+            onOpenConfig={() => setShowExportConfig(true)}
+          />
         )}
         {activeTab === 'billing' && (
-          <BillingReport tasks={tasks} onTasksUpdate={handleVisitsUpdate} user={user} />
+          <BillingReport
+            tasks={tasks}
+            onTasksUpdate={handleVisitsUpdate}
+            user={user}
+            exportConfig={getActiveColumns('billing')}
+            onOpenConfig={() => setShowExportConfig(true)}
+          />
         )}
       </main>
 
       {/* Toasts */}
       <Toast toasts={toasts} onClose={removeToast} />
+
+      {/* Modal configuración columnas exportación */}
+      {showExportConfig && (
+        <ExportConfigManager
+          configs={exportConfigs}
+          isLoading={configLoading}
+          onSave={saveConfig}
+          onReset={resetConfig}
+          onClose={() => setShowExportConfig(false)}
+        />
+      )}
     </div>
   );
 }

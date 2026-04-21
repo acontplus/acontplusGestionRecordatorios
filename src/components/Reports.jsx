@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Filter, X, ChevronDown, ChevronUp, Download, FileText, Search } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronUp, Download, FileText, Search, Settings } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
+import { exportCSV, exportExcel } from '../services/exportService.js';
 
 // ✅ Fecha local (no UTC) — evita desfase en Ecuador (UTC-5) y zonas similares
 const localDateStr = (d = new Date()) =>
@@ -20,112 +21,7 @@ const INITIAL_FILTERS = {
   dueDateTo: '',
 };
 
-function exportToCSV(tasks) {
-  const headers = [
-    'Orden de Servicio', 'Cliente', 'Cédula/RUC', 'Teléfono', 'Dirección',
-    'Tipo Instalación/Equipo/Servicio',   // ← nuevo
-    'Equipo', 'Tipo', 'Urgencia', 'Estado', 'Fecha Vencimiento',
-    'Observaciones', 'Creado Por', 'Fecha Creación',
-    'Completado Por', 'Fecha Completado', 'Obs. Cierre',
-  ];
-
-  const rows = tasks.map(t => [
-    t.serviceOrder  || '',
-    t.clientName    || '',
-    t.identification || '',
-    t.clientPhone   || '',
-    t.clientAddress || '',
-    t.serviceType   || '',   // ← nuevo
-    t.equipment     || '',
-    t.type          || '',
-    t.urgency       || '',
-    t.status        || '',
-    t.dueDate       || '',
-    t.observations  || '',
-    t.createdBy     || '',
-    t.createdAt  ? new Date(t.createdAt).toLocaleString('es-EC')  : '',
-    t.completedBy   || '',
-    t.completedAt? new Date(t.completedAt).toLocaleString('es-EC'): '',
-    t.completionObservations || '',
-  ]);
-
-  const csvContent = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
-
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href  = url;
-  link.download = `reporte_mantenimientos_${localDateStr()}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportToExcel(tasks) {
-  const headers = [
-    'Orden de Servicio', 'Cliente', 'Cédula/RUC', 'Teléfono', 'Dirección',
-    'Tipo Instalación/Equipo/Servicio',   // ← nuevo
-    'Equipo', 'Tipo', 'Urgencia', 'Estado', 'Fecha Vencimiento',
-    'Observaciones', 'Creado Por', 'Fecha Creación',
-    'Completado Por', 'Fecha Completado', 'Obs. Cierre',
-  ];
-
-  const rows = tasks.map(t => [
-    t.serviceOrder  || '',
-    t.clientName    || '',
-    t.identification || '',
-    t.clientPhone   || '',
-    t.clientAddress || '',
-    t.serviceType   || '',   // ← nuevo
-    t.equipment     || '',
-    t.type          || '',
-    t.urgency       || '',
-    t.status        || '',
-    t.dueDate       || '',
-    t.observations  || '',
-    t.createdBy     || '',
-    t.createdAt  ? new Date(t.createdAt).toLocaleString('es-EC')  : '',
-    t.completedBy   || '',
-    t.completedAt? new Date(t.completedAt).toLocaleString('es-EC'): '',
-    t.completionObservations || '',
-  ]);
-
-  const tableHTML = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office"
-          xmlns:x="urn:schemas-microsoft-com:office:excel"
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="UTF-8">
-      <!--[if gte mso 9]>
-      <xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-        <x:Name>Mantenimientos</x:Name>
-        <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml>
-      <![endif]-->
-      <style>
-        th { background-color: #1e40af; color: white; font-weight: bold; padding: 8px; }
-        td { padding: 6px 8px; border: 1px solid #e2e8f0; }
-        tr:nth-child(even) td { background-color: #f8fafc; }
-      </style>
-    </head>
-    <body>
-      <table>
-        <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>
-    </body></html>`;
-
-  const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href  = url;
-  link.download = `reporte_mantenimientos_${localDateStr()}.xls`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-export default function Reports({ tasks }) {
+export default function Reports({ tasks, exportConfig, onOpenConfig }) {
   const [filters,        setFilters]        = useState(INITIAL_FILTERS);
   const [showFilters,    setShowFilters]    = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -193,45 +89,57 @@ export default function Reports({ tasks }) {
           </p>
         </div>
 
-        {/* Botón exportar */}
-        <div className="relative">
+        {/* Acciones: config + exportar */}
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowExportMenu(!showExportMenu)}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+            onClick={onOpenConfig}
+            className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+            title="Configurar columnas de exportación"
           >
-            <Download size={16} />
-            <span>Exportar</span>
-            <ChevronDown size={14} />
+            <Settings size={15} />
+            <span className="hidden sm:inline">Columnas</span>
           </button>
-          {showExportMenu && (
-            <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-10 overflow-hidden">
-              <button
-                onClick={() => { exportToExcel(filteredTasks); setShowExportMenu(false); }}
-                className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
-              >
-                <div className="p-1.5 bg-green-100 rounded">
-                  <FileText size={14} className="text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-700">Excel (.xls)</p>
-                  <p className="text-xs text-slate-400">Con formato y estilos</p>
-                </div>
-              </button>
-              <div className="border-t border-slate-100" />
-              <button
-                onClick={() => { exportToCSV(filteredTasks); setShowExportMenu(false); }}
-                className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
-              >
-                <div className="p-1.5 bg-blue-100 rounded">
-                  <FileText size={14} className="text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-700">CSV</p>
-                  <p className="text-xs text-slate-400">Compatible con cualquier app</p>
-                </div>
-              </button>
-            </div>
-          )}
+
+          {/* Botón exportar */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+            >
+              <Download size={16} />
+              <span>Exportar</span>
+              <ChevronDown size={14} />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-10 overflow-hidden">
+                <button
+                  onClick={() => { exportExcel('tasks', exportConfig, filteredTasks); setShowExportMenu(false); }}
+                  className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                >
+                  <div className="p-1.5 bg-green-100 rounded">
+                    <FileText size={14} className="text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">Excel (.xls)</p>
+                    <p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p>
+                  </div>
+                </button>
+                <div className="border-t border-slate-100" />
+                <button
+                  onClick={() => { exportCSV('tasks', exportConfig, filteredTasks); setShowExportMenu(false); }}
+                  className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                >
+                  <div className="p-1.5 bg-blue-100 rounded">
+                    <FileText size={14} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">CSV</p>
+                    <p className="text-xs text-slate-400">Compatible con cualquier app</p>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

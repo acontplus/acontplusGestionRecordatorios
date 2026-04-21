@@ -154,7 +154,8 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
             <CalendarDays size={13} />
             <span>Visitas</span>
             {visitCount > 0 && (
-              <span className="bg-white bg-opacity-30 rounded-full px-1.5 py-0.5 text-xs font-bold">
+              <span className="rounded-full px-1.5 py-0.5 text-xs font-bold"
+                style={{ background: 'rgba(255,255,255,0.30)' }}>
                 {pendingVisits}/{visitCount}
               </span>
             )}
