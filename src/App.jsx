@@ -12,11 +12,12 @@ import TaskList from './components/TaskList.jsx';
 import TaskForm from './components/TaskForm.jsx';
 import Reports from './components/Reports.jsx';
 import VisitsReport from './components/VisitsReport.jsx';
+import BillingReport from './components/BillingReport.jsx';
 import Toast from './components/Toast.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import {
   Home, Wrench, FileText, Plus, Bell, BellOff,
-  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList
+  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet
 } from 'lucide-react';
 
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
@@ -76,6 +77,13 @@ export default function App() {
   const handleEdit = (task) => {
     setEditingTask(task);
     setActiveTab('form');
+  };
+
+  // Actualizar visitas de una tarea específica desde BillingReport
+  const handleVisitsUpdate = async (taskId, updatedVisits) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    await addTask({ ...task, visits: updatedVisits }, user.email);
   };
 
   if (isLoading || (isLoadingTasks && tasks.length === 0)) {
@@ -140,6 +148,12 @@ export default function App() {
             label="Visitas"
             isActive={activeTab === 'visits-report'}
             onClick={() => setActiveTab('visits-report')}
+          />
+          <NavItem
+            icon={<Wallet />}
+            label="Cobros"
+            isActive={activeTab === 'billing'}
+            onClick={() => setActiveTab('billing')}
           />
 
           {/* Logout desktop */}
@@ -245,6 +259,9 @@ export default function App() {
         )}
         {activeTab === 'visits-report' && (
           <VisitsReport tasks={tasks} />
+        )}
+        {activeTab === 'billing' && (
+          <BillingReport tasks={tasks} onTasksUpdate={handleVisitsUpdate} user={user} />
         )}
       </main>
 
