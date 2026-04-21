@@ -1,21 +1,25 @@
 import { useState, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, Calendar, Clock, User,
-  CalendarDays, Phone, MapPin, Wrench, AlertCircle,
-  FileText, Hash, CheckCircle, X
+  CalendarDays, Plus, X, Phone, MapPin, Wrench,
+  AlertCircle, CheckCircle, Loader2, FileText
 } from 'lucide-react';
+import { useVisits } from '../hooks/useVisits';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
-// ── Helpers ───────────────────────────────────────────────────────────────
-function formatDate(isoString) {
-  if (!isoString) return '—';
-  return new Date(isoString).toLocaleDateString('es-EC', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
-}
+const TASK_TYPES = [
+  'Mantenimiento preventivo',
+  'Mantenimiento correctivo',
+  'Instalación',
+  'Revisión técnica',
+  'Cambio de filtros',
+  'Limpieza de equipo',
+  'Otro',
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDateOnly(dateStr) {
   if (!dateStr) return '—';
@@ -23,23 +27,35 @@ function formatDateOnly(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-// ── Construye los eventos del calendario ──────────────────────────────────
 function getCalendarEvents(tasks) {
   const events = [];
   tasks.forEach(task => {
-    // Visitas de la tarea
+    if (task.dueDate) {
+      events.push({
+        id: `task-${task.id}`,
+        date: task.dueDate,
+        time: '',
+        title: task.clientName,
+        subtitle: task.type,
+        type: 'task',
+        status: task.status,
+        urgency: task.urgency,
+        task,
+      });
+    }
     if (task.visits?.length) {
       task.visits.forEach(visit => {
         if (visit.scheduledDate) {
           events.push({
-            id:          `visit-${visit.id}`,
-            date:        visit.scheduledDate,
-            time:        visit.scheduledTime || '',
-            title:       task.clientName,
-            subtitle:    visit.type || visit.technician || '—',
-            type:        'visit',
+            id: `visit-${visit.id}`,
+            date: visit.scheduledDate,
+            time: visit.scheduledTime || '',
+            title: task.clientName,
+            subtitle: visit.type || visit.technician || task.type,
+            type: 'visit',
             visitStatus: visit.status,
-            urgency:     visit.urgency || '',
+            visitType: visit.type,
+            urgency: visit.urgency,
             task,
             visit,
           });
@@ -50,369 +66,358 @@ function getCalendarEvents(tasks) {
   return events;
 }
 
-// ── Badge de urgencia ─────────────────────────────────────────────────────
-function UrgencyBadge({ urgency, small }) {
-  if (!urgency) return null;
-  const cls = {
-    'Alta':  'bg-red-100 text-red-700 border-red-200',
-    'Media': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    'Baja':  'bg-green-100 text-green-700 border-green-200',
-  }[urgency] || 'bg-slate-100 text-slate-500';
-  return (
-    <span className={`inline-block border rounded-full font-bold ${small ? 'text-[9px] px-1.5 py-0' : 'text-xs px-2 py-0.5'} ${cls}`}>
-      {urgency}
-    </span>
-  );
-}
+// ─── Badge compacto (vista mensual) ───────────────────────────────────────────
 
-// ── Badge de estado de visita ─────────────────────────────────────────────
-function VisitStatusBadge({ status, small }) {
-  const cls = {
-    'Programada': 'bg-blue-100 text-blue-700 border-blue-200',
-    'Realizada':  'bg-green-100 text-green-700 border-green-200',
-    'Cancelada':  'bg-amber-100 text-amber-700 border-amber-200',
-    'Anulada':    'bg-red-100 text-red-600 border-red-200',
-  }[status] || 'bg-slate-100 text-slate-500';
-  return (
-    <span className={`inline-block border rounded-full font-bold ${small ? 'text-[9px] px-1.5 py-0' : 'text-xs px-2 py-0.5'} ${cls}`}>
-      {status || '—'}
-    </span>
-  );
-}
-
-// ── EventBadge (vista mes) ────────────────────────────────────────────────
 function EventBadge({ event, onClick }) {
-  const visitBorderColor = {
-    'Programada': '#D61672',
-    'Realizada':  '#16a34a',
-    'Cancelada':  '#f59e0b',
-    'Anulada':    '#dc2626',
-  }[event.visitStatus] || '#D61672';
+  const isTask  = event.type === 'task';
+
+  const taskColor = {
+    'Completado': 'bg-green-100 text-green-700 border-green-200',
+    'Cancelado':  'bg-slate-100 text-slate-500 border-slate-200',
+    'En Proceso': 'bg-blue-100 text-blue-700 border-blue-200',
+    'Pendiente':  'bg-yellow-100 text-yellow-700 border-yellow-200',
+  }[event.status] || 'bg-yellow-100 text-yellow-700 border-yellow-200';
+
+  const visitColor = {
+    'Programada': 'border-l-2 bg-pink-50 text-pink-700 border-pink-300',
+    'Realizada':  'border-l-2 bg-green-50 text-green-700 border-green-300',
+    'Cancelada':  'border-l-2 bg-slate-50 text-slate-500 border-slate-300',
+  }[event.visitStatus] || 'border-l-2 bg-pink-50 text-pink-700 border-pink-300';
 
   return (
     <button
       onClick={() => onClick(event)}
-      className="w-full text-left px-1.5 py-0.5 rounded text-xs truncate border-l-2 bg-white hover:bg-slate-50 transition-colors shadow-sm"
-      style={{ borderLeftColor: visitBorderColor }}
-      title={`${event.title}${event.time ? ' · ' + event.time : ''}${event.subtitle ? ' — ' + event.subtitle : ''}`}
+      className={`w-full text-left px-1.5 py-0.5 rounded text-xs truncate border transition-colors hover:opacity-80 ${
+        isTask ? taskColor : visitColor
+      }`}
+      title={`${event.title} — ${event.subtitle}${event.time ? ` (${event.time})` : ''}`}
     >
-      {event.time && <span className="font-bold mr-1" style={{ color: visitBorderColor }}>{event.time}</span>}
-      <span className="text-slate-700 font-medium">{event.title}</span>
+      {event.time && <span className="font-bold mr-1">{event.time}</span>}
+      {event.title}
     </button>
   );
 }
 
-// ── EventCard (vista semana — más grande y detallada) ─────────────────────
-function EventCard({ event, onClick }) {
-  const borderColor = {
-    'Programada': '#D61672',
-    'Realizada':  '#16a34a',
-    'Cancelada':  '#f59e0b',
-    'Anulada':    '#dc2626',
-  }[event.visitStatus] || '#D61672';
+// ─── Tarjeta rica (vista semanal) ─────────────────────────────────────────────
 
-  const bgColor = {
-    'Programada': '#fdf2f8',
-    'Realizada':  '#f0fdf4',
-    'Cancelada':  '#fffbeb',
-    'Anulada':    '#fef2f2',
-  }[event.visitStatus] || '#fdf2f8';
+function WeekEventCard({ event, onClick, onAddVisit }) {
+  const isTask  = event.type === 'task';
+  const isVisit = event.type === 'visit';
+
+  const urgencyDot = {
+    Alta:  'bg-red-500',
+    Media: 'bg-yellow-400',
+    Baja:  'bg-green-400',
+  }[event.urgency || event.visit?.urgency] || 'bg-slate-300';
+
+  const statusStyle = isTask ? ({
+    'Completado': 'bg-green-100 text-green-700',
+    'Cancelado':  'bg-slate-100 text-slate-500',
+    'En Proceso': 'bg-blue-100 text-blue-700',
+    'Pendiente':  'bg-yellow-100 text-yellow-800',
+  }[event.status] || 'bg-yellow-100 text-yellow-800') : ({
+    'Programada': 'bg-pink-100 text-pink-700',
+    'Realizada':  'bg-green-100 text-green-700',
+    'Cancelada':  'bg-slate-100 text-slate-500',
+  }[event.visitStatus] || 'bg-pink-100 text-pink-700');
+
+  const borderLeft = isTask ? 'border-l-2 border-blue-400' : {
+    'Programada': 'border-l-2 border-pink-400',
+    'Realizada':  'border-l-2 border-green-400',
+    'Cancelada':  'border-l-2 border-slate-300',
+  }[event.visitStatus] || 'border-l-2 border-pink-400';
+
+  const task = event.task;
 
   return (
-    <button
-      onClick={() => onClick(event)}
-      className="w-full text-left rounded-lg p-2 border-l-[3px] shadow-sm hover:shadow-md transition-all hover:scale-[1.01] space-y-0.5"
-      style={{ borderLeftColor: borderColor, background: bgColor }}>
-
-      {/* Cliente + hora */}
-      <div className="flex items-start justify-between gap-1">
-        <p className="text-xs font-bold text-slate-800 leading-tight truncate flex-1">
-          {event.title}
-        </p>
-        {event.time && (
-          <span className="text-[10px] font-bold flex-shrink-0" style={{ color: borderColor }}>
-            {event.time}
-          </span>
-        )}
-      </div>
-
-      {/* Tipo de visita */}
-      {event.visit?.type && (
-        <p className="text-[10px] text-slate-500 leading-tight truncate flex items-center gap-0.5">
-          <Wrench size={9} className="flex-shrink-0" />
-          {event.visit.type}
-        </p>
-      )}
-
-      {/* Técnico */}
-      {event.visit?.technician && (
-        <p className="text-[10px] text-slate-500 leading-tight truncate flex items-center gap-0.5">
-          <User size={9} className="flex-shrink-0" />
-          {event.visit.technician}
-        </p>
-      )}
-
-      {/* Badges: urgencia + estado */}
-      <div className="flex items-center gap-1 flex-wrap pt-0.5">
-        {event.urgency && (
-          <UrgencyBadge urgency={event.urgency} small />
-        )}
-        <VisitStatusBadge status={event.visitStatus} small />
-      </div>
-    </button>
-  );
-}
-
-// ── Modal de detalle completo de la visita ────────────────────────────────
-function EventDetailModal({ event, onClose }) {
-  if (!event) return null;
-
-  const { task, visit } = event;
-
-  const statusColor = {
-    'Pendiente':  '#d97706',
-    'En Proceso': '#2563eb',
-    'Completado': '#16a34a',
-    'Cancelado':  '#6b7280',
-  }[task?.status] || '#6b7280';
-
-  const visitBorderColor = {
-    'Programada': '#D61672',
-    'Realizada':  '#16a34a',
-    'Cancelada':  '#f59e0b',
-    'Anulada':    '#dc2626',
-  }[visit?.status] || '#D61672';
-
-  const Row = ({ icon, label, value, mono }) => (
-    value ? (
-      <div className="flex items-start space-x-2.5 py-2 border-b border-slate-50 last:border-0">
-        <div className="flex-shrink-0 mt-0.5 text-slate-400">{icon}</div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-0.5">{label}</p>
-          <p className={`text-sm text-slate-800 leading-snug ${mono ? 'font-mono font-bold text-purple-700' : 'font-medium'}`}>
-            {value}
-          </p>
+    <div className={`bg-white rounded-lg border border-slate-100 shadow-sm mb-1.5 overflow-hidden hover:shadow-md transition-shadow ${borderLeft}`}>
+      {/* Cabecera clickeable */}
+      <button
+        onClick={() => onClick(event)}
+        className="w-full text-left px-2.5 pt-2 pb-1"
+      >
+        {/* Nombre cliente + urgency dot */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${urgencyDot}`} />
+          <span className="text-xs font-semibold text-slate-800 truncate leading-tight">{event.title}</span>
         </div>
-      </div>
-    ) : null
-  );
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(2px)' }}>
+        {/* Hora + tipo */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {event.time && (
+            <span className="flex items-center gap-0.5 text-xs text-slate-500">
+              <Clock size={10} className="flex-shrink-0" />
+              {event.time}
+            </span>
+          )}
+          {(event.subtitle) && (
+            <span className="flex items-center gap-0.5 text-xs text-slate-500 truncate">
+              <Wrench size={10} className="flex-shrink-0" />
+              <span className="truncate max-w-[80px]">{event.subtitle}</span>
+            </span>
+          )}
+        </div>
 
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-
-        {/* ── Header: cliente + estado visita ── */}
-        <div className="text-white" style={{ background: `linear-gradient(135deg, ${visitBorderColor}, #FFA901)` }}>
-          <div className="px-5 pt-5 pb-4">
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex-1 min-w-0">
-                {/* Tipo de evento */}
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-1"
-                  style={{ opacity: 0.75 }}>
-                  📅 Visita programada
-                </p>
-                {/* Nombre cliente */}
-                <h3 className="text-lg font-bold text-white leading-tight truncate">
-                  {task?.clientName || '—'}
-                </h3>
-                {/* Técnico */}
-                {visit?.technician && (
-                  <p className="text-sm text-white mt-0.5" style={{ opacity: 0.85 }}>
-                    {visit.technician}
-                  </p>
-                )}
-              </div>
-              <button onClick={onClose}
-                className="ml-2 flex-shrink-0 p-1.5 rounded-xl transition-colors"
-                style={{ color: 'rgba(255,255,255,0.8)' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Chips: OS + estado tarea */}
-            <div className="flex flex-wrap gap-1.5">
-              {task?.serviceOrder && (
-                <div className="flex items-center space-x-1 rounded-lg px-2.5 py-1"
-                  style={{ background: 'rgba(255,255,255,0.22)' }}>
-                  <Hash size={11} className="text-white" />
-                  <span className="text-xs font-bold text-white font-mono">OS: {task.serviceOrder}</span>
-                </div>
-              )}
-              {task?.status && (
-                <div className="flex items-center rounded-lg px-2.5 py-1"
-                  style={{ background: 'rgba(255,255,255,0.22)' }}>
-                  <span className="text-xs font-semibold text-white">{task.status}</span>
-                </div>
-              )}
-              <div className="flex items-center rounded-lg px-2.5 py-1"
-                style={{ background: 'rgba(255,255,255,0.22)' }}>
-                <span className="text-xs font-semibold text-white">{visit?.status || '—'}</span>
-              </div>
-              {visit?.urgency && (
-                <div className="flex items-center rounded-lg px-2.5 py-1"
-                  style={{ background: 'rgba(255,255,255,0.22)' }}>
-                  <span className="text-xs font-semibold text-white">{visit.urgency}</span>
-                </div>
-              )}
-            </div>
+        {/* Teléfono */}
+        {task?.clientPhone && (
+          <div className="flex items-center gap-0.5 mt-0.5">
+            <Phone size={9} className="text-slate-400 flex-shrink-0" />
+            <span className="text-xs text-slate-500">{task.clientPhone}</span>
           </div>
-        </div>
+        )}
 
-        {/* ── Cuerpo: información completa ── */}
-        <div className="px-5 py-4 space-y-0 overflow-y-auto" style={{ maxHeight: '55vh' }}>
+        {/* Dirección */}
+        {task?.clientAddress && (
+          <div className="flex items-center gap-0.5 mt-0.5">
+            <MapPin size={9} className="text-slate-400 flex-shrink-0" />
+            <span className="text-xs text-slate-500 truncate">{task.clientAddress}</span>
+          </div>
+        )}
 
-          {/* Fecha y hora */}
-          <Row
-            icon={<Calendar size={14} />}
-            label="Fecha programada"
-            value={`${formatDateOnly(visit?.scheduledDate)}${visit?.scheduledTime ? ' · ' + visit.scheduledTime : ''}`}
-          />
+        {/* Técnico (solo en visitas) */}
+        {isVisit && event.visit?.technician && (
+          <div className="flex items-center gap-0.5 mt-0.5">
+            <User size={9} className="text-slate-400 flex-shrink-0" />
+            <span className="text-xs text-slate-500 truncate">{event.visit.technician}</span>
+          </div>
+        )}
 
-          {/* Tipo de visita */}
-          <Row
-            icon={<Wrench size={14} />}
-            label="Tipo de visita"
-            value={visit?.type}
-          />
+        {/* Observaciones */}
+        {(isVisit ? event.visit?.observations : task?.observations) && (
+          <p className="text-xs text-slate-400 italic truncate mt-0.5">
+            📝 {isVisit ? event.visit.observations : task.observations}
+          </p>
+        )}
+      </button>
 
-          {/* Técnico */}
-          <Row
-            icon={<User size={14} />}
-            label="Técnico asignado"
-            value={visit?.technician}
-          />
-
-          {/* Datos del cliente */}
-          {task?.clientPhone && (
-            <Row icon={<Phone size={14} />} label="Teléfono" value={task.clientPhone} />
-          )}
-          {task?.clientAddress && (
-            <Row icon={<MapPin size={14} />} label="Dirección" value={task.clientAddress} />
-          )}
-          {task?.identification && (
-            <Row icon={<FileText size={14} />} label="Cédula / RUC" value={task.identification} mono />
-          )}
-
-          {/* Observaciones de la visita */}
-          {visit?.observations && (
-            <div className="py-2 border-b border-slate-50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">📝 Observaciones</p>
-              <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-2.5">
-                {visit.observations}
-              </p>
-            </div>
-          )}
-
-          {/* Observaciones de la tarea */}
-          {task?.observations && (
-            <div className="py-2 border-b border-slate-50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">📋 Obs. de la tarea</p>
-              <p className="text-sm text-slate-500 italic leading-relaxed bg-amber-50 rounded-lg p-2.5">
-                {task.observations}
-              </p>
-            </div>
-          )}
-
-          {/* Datos de cierre (si realizada) */}
-          {visit?.status === 'Realizada' && visit?.completedAt && (
-            <div className="mt-2 p-3 bg-green-50 rounded-xl border border-green-200">
-              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1.5">✅ Datos de cierre</p>
-              <div className="space-y-1">
-                <p className="text-xs text-green-700">
-                  <span className="font-semibold">Completado:</span> {formatDate(visit.completedAt)}
-                </p>
-                {visit.completedBy && (
-                  <p className="text-xs text-green-700">
-                    <span className="font-semibold">Por:</span> {visit.completedBy}
-                  </p>
-                )}
-                {visit.closingObservations && (
-                  <p className="text-xs text-green-700 bg-green-100 rounded-lg p-2 mt-1">
-                    {visit.closingObservations}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Footer ── */}
-        <div className="px-5 pb-5 pt-3">
-          <button onClick={onClose}
-            className="w-full py-2.5 text-white font-bold rounded-xl text-sm transition-all hover:opacity-90"
-            style={{ background: `linear-gradient(135deg, ${visitBorderColor}, #FFA901)` }}>
-            Cerrar
+      {/* Footer: estado + botón agregar visita (solo en tareas activas) */}
+      <div className="flex items-center justify-between px-2.5 pb-1.5 pt-0.5">
+        <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${statusStyle}`}>
+          {isTask ? event.status : event.visitStatus}
+        </span>
+        {isTask && event.status !== 'Completado' && event.status !== 'Cancelado' && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddVisit(event.task); }}
+            className="flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-lg transition-colors hover:bg-pink-50"
+            style={{ color: '#D61672' }}
+            title="Agregar visita a esta tarea"
+          >
+            <Plus size={11} />
+            Visita
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Vista mensual ─────────────────────────────────────────────────────────
-function MonthView({ year, month, events, onEventClick }) {
+// ─── Formulario agregar visita (inline en el calendario) ──────────────────────
+
+function AddVisitInlineForm({ task, user, defaultDate, onClose }) {
+  const { addVisit, isLoading } = useVisits(task, user);
+  const [form, setForm] = useState({
+    scheduledDate: defaultDate || new Date().toISOString().split('T')[0],
+    scheduledTime: '',
+    type: TASK_TYPES[0],
+    urgency: 'Media',
+    observations: '',
+    technician: user?.email || '',
+  });
+  const [saved, setSaved] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const ok = await addVisit(form);
+    if (ok) {
+      setSaved(true);
+      setTimeout(onClose, 900);
+    }
+  };
+
+  const inp = "w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-pink-400 transition-colors bg-white";
+  const lbl = "block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1";
+
+  if (saved) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-3">
+          <CheckCircle size={40} className="text-green-500" />
+          <p className="font-semibold text-slate-700">Visita guardada</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+        {/* Header */}
+        <div className="px-5 py-4 text-white flex items-start justify-between"
+          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide opacity-80">Nueva visita</p>
+            <h3 className="font-bold text-base mt-0.5">{task.clientName}</h3>
+            {task.clientPhone && (
+              <p className="text-xs opacity-80 mt-0.5">📞 {task.clientPhone}</p>
+            )}
+          </div>
+          <button onClick={onClose}
+            className="p-1.5 text-white opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors ml-3">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Panel informativo de la tarea */}
+        <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 space-y-1.5">
+          {task.serviceOrder && (
+            <div className="flex items-center gap-2">
+              <FileText size={12} className="text-slate-400 flex-shrink-0" />
+              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">OS:</span>
+              <span className="text-xs font-bold text-slate-700">{task.serviceOrder}</span>
+            </div>
+          )}
+          {task.dueDate && (
+            <div className="flex items-center gap-2">
+              <Calendar size={12} className="text-slate-400 flex-shrink-0" />
+              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Fecha tarea:</span>
+              <span className="text-xs font-bold text-slate-700">{formatDateOnly(task.dueDate)}</span>
+            </div>
+          )}
+          {task.observations && (
+            <div className="flex items-start gap-2">
+              <span className="text-xs mt-0.5 flex-shrink-0">📝</span>
+              <p className="text-xs text-slate-500 italic leading-relaxed">{task.observations}</p>
+            </div>
+          )}
+          {!task.serviceOrder && !task.dueDate && !task.observations && (
+            <p className="text-xs text-slate-400 italic">Sin datos adicionales de la tarea</p>
+          )}
+        </div>
+
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>Fecha programada <span className="text-red-400">*</span></label>
+              <input type="date" name="scheduledDate" value={form.scheduledDate} onChange={handleChange}
+                className={inp} required />
+            </div>
+            <div>
+              <label className={lbl}>Hora</label>
+              <input type="time" name="scheduledTime" value={form.scheduledTime} onChange={handleChange}
+                className={inp} />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Tipo de visita</label>
+            <select name="type" value={form.type} onChange={handleChange} className={inp}>
+              {TASK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className={lbl}>Urgencia</label>
+            <div className="flex gap-2">
+              {['Alta','Media','Baja'].map(u => (
+                <button type="button" key={u}
+                  onClick={() => setForm(prev => ({ ...prev, urgency: u }))}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    form.urgency === u
+                      ? u === 'Alta'   ? 'bg-red-100 border-red-300 text-red-700'
+                      : u === 'Media'  ? 'bg-yellow-100 border-yellow-300 text-yellow-700'
+                      :                  'bg-green-100 border-green-300 text-green-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-500'
+                  }`}>
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Técnico</label>
+            <input type="text" name="technician" value={form.technician} onChange={handleChange}
+              className={inp} placeholder="Email del técnico" />
+          </div>
+
+          <div>
+            <label className={lbl}>Observaciones</label>
+            <textarea name="observations" value={form.observations} onChange={handleChange}
+              rows={2} className={`${inp} resize-none`}
+              placeholder="Describe el trabajo a realizar..." />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={isLoading}
+              className="flex-1 py-2.5 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+              {isLoading ? 'Guardando...' : 'Guardar visita'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Vista mensual ─────────────────────────────────────────────────────────────
+
+function MonthView({ year, month, events, onEventClick, onAddVisitToTask }) {
   const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  })();
+  const today       = new Date().toISOString().split('T')[0];
 
   const cells = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   const getEventsForDay = (day) => {
-    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return events.filter(e => e.date === dateStr)
       .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      {/* Cabecera días */}
-      <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+      <div className="grid grid-cols-7 border-b border-slate-200">
         {DAYS.map(day => (
-          <div key={day} className="px-2 py-2.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wide">
+          <div key={day} className="px-2 py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wide">
             {day}
           </div>
         ))}
       </div>
-
-      {/* Celdas */}
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          if (!day) return (
-            <div key={`e-${idx}`} className="border-r border-b border-slate-100 min-h-28 bg-slate-50/50" />
-          );
-
-          const dateStr    = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          if (!day) return <div key={`empty-${idx}`} className="border-r border-b border-slate-100 min-h-24 bg-slate-50" />;
+          const dateStr    = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const dayEvents  = getEventsForDay(day);
           const isToday    = dateStr === today;
           const isWeekend  = [0, 6].includes(new Date(year, month, day).getDay());
-
           return (
-            <div key={day}
-              className={`border-r border-b border-slate-100 min-h-28 p-1.5 ${isWeekend ? 'bg-slate-50/70' : 'bg-white'}`}>
-              {/* Número del día */}
-              <div className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mb-1 ${
-                isToday ? 'text-white' : 'text-slate-600'
-              }`} style={isToday ? { background: '#D61672' } : {}}>
+            <div key={day} className={`border-r border-b border-slate-100 min-h-24 p-1 ${isWeekend ? 'bg-slate-50' : 'bg-white'}`}>
+              <div className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-semibold mb-1 ${isToday ? 'text-white' : 'text-slate-700'}`}
+                style={isToday ? { background: '#D61672' } : {}}>
                 {day}
               </div>
-              {/* Eventos */}
               <div className="space-y-0.5">
-                {dayEvents.slice(0, 3).map(ev => (
-                  <EventBadge key={ev.id} event={ev} onClick={onEventClick} />
+                {dayEvents.slice(0, 3).map(event => (
+                  <EventBadge key={event.id} event={event} onClick={onEventClick} />
                 ))}
                 {dayEvents.length > 3 && (
-                  <p className="text-[10px] text-slate-400 pl-1 font-semibold">
-                    +{dayEvents.length - 3} más
-                  </p>
+                  <p className="text-xs text-slate-400 pl-1">+{dayEvents.length - 3} más</p>
                 )}
               </div>
             </div>
@@ -423,8 +428,9 @@ function MonthView({ year, month, events, onEventClick }) {
   );
 }
 
-// ── Vista semanal (celdas grandes con info detallada) ─────────────────────
-function WeekView({ year, month, day, events, onEventClick }) {
+// ─── Vista semanal mejorada ────────────────────────────────────────────────────
+
+function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, onAddVisitToDay }) {
   const startOfWeek = new Date(year, month, day);
   startOfWeek.setDate(day - startOfWeek.getDay());
 
@@ -434,82 +440,78 @@ function WeekView({ year, month, day, events, onEventClick }) {
     return d;
   });
 
-  const today = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  })();
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const getEventsForDay = (date) => {
-    const y   = date.getFullYear();
-    const m   = String(date.getMonth() + 1).padStart(2, '0');
-    const d   = String(date.getDate()).padStart(2, '0');
-    const str = `${y}-${m}-${d}`;
-    return events.filter(e => e.date === str)
+    const dateStr = date.toISOString().split('T')[0];
+    return events.filter(e => e.date === dateStr)
       .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   };
 
+  // Calcular altura mínima basada en el día con más eventos
+  const maxEvents = Math.max(...weekDays.map(d => getEventsForDay(d).length), 1);
+  const colMinHeight = Math.max(160, maxEvents * 82 + 40);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-
-      {/* Cabecera: día de la semana + fecha */}
-      <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+      {/* Cabecera días */}
+      <div className="grid grid-cols-7 border-b border-slate-200">
         {weekDays.map((date, idx) => {
-          const y   = date.getFullYear();
-          const m   = String(date.getMonth() + 1).padStart(2, '0');
-          const d   = String(date.getDate()).padStart(2, '0');
-          const str = `${y}-${m}-${d}`;
-          const isToday   = str === today;
-          const isWeekend = [0, 6].includes(date.getDay());
+          const dateStr = date.toISOString().split('T')[0];
+          const isToday = dateStr === todayStr;
+          const dayEventCount = getEventsForDay(date).length;
           return (
             <div key={idx}
-              className={`px-2 py-3 text-center border-r border-slate-100 last:border-r-0 ${
-                isToday ? 'bg-pink-50' : isWeekend ? 'bg-slate-100/50' : ''
-              }`}>
-              <p className={`text-xs font-bold uppercase tracking-wide ${isWeekend ? 'text-slate-400' : 'text-slate-500'}`}>
-                {DAYS[date.getDay()]}
-              </p>
-              <div className={`w-9 h-9 mx-auto mt-1 flex items-center justify-center rounded-full text-sm font-bold ${
-                isToday ? 'text-white shadow-sm' : isWeekend ? 'text-slate-400' : 'text-slate-700'
-              }`} style={isToday ? { background: '#D61672' } : {}}>
+              className={`px-1 py-2.5 text-center border-r border-slate-100 last:border-r-0 ${isToday ? 'bg-pink-50' : ''}`}>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{DAYS[date.getDay()]}</p>
+              <div className={`w-8 h-8 mx-auto mt-1 flex items-center justify-center rounded-full text-sm font-bold
+                ${isToday ? 'text-white' : 'text-slate-700'}`}
+                style={isToday ? { background: '#D61672' } : {}}>
                 {date.getDate()}
               </div>
-              {/* Conteo de eventos */}
-              {(() => {
-                const cnt = getEventsForDay(date).length;
-                return cnt > 0 ? (
-                  <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: isToday ? '#D61672' : '#fdf2f8', color: isToday ? '#fff' : '#D61672' }}>
-                    {cnt}
-                  </span>
-                ) : null;
-              })()}
+              {/* Contador de eventos */}
+              {dayEventCount > 0 && (
+                <span className="inline-block mt-0.5 text-xs font-medium text-slate-400">
+                  {dayEventCount} ev.
+                </span>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Cuerpo: tarjetas detalladas por día */}
-      <div className="grid grid-cols-7" style={{ minHeight: '520px' }}>
+      {/* Cuerpo columnas */}
+      <div className="grid grid-cols-7" style={{ minHeight: colMinHeight }}>
         {weekDays.map((date, idx) => {
-          const y   = date.getFullYear();
-          const m   = String(date.getMonth() + 1).padStart(2, '0');
-          const d   = String(date.getDate()).padStart(2, '0');
-          const str = `${y}-${m}-${d}`;
           const dayEvents = getEventsForDay(date);
-          const isToday   = str === today;
-          const isWeekend = [0, 6].includes(date.getDay());
+          const dateStr   = date.toISOString().split('T')[0];
+          const isToday   = dateStr === todayStr;
 
           return (
             <div key={idx}
-              className={`border-r border-slate-100 last:border-r-0 p-1.5 space-y-1.5 ${
-                isToday   ? 'bg-pink-50/40'    :
-                isWeekend ? 'bg-slate-50/70'   : ''
-              }`}>
-              {dayEvents.map(ev => (
-                <EventCard key={ev.id} event={ev} onClick={onEventClick} />
+              className={`border-r border-slate-100 last:border-r-0 p-1.5
+                ${isToday ? 'bg-pink-50 bg-opacity-40' : ''}`}>
+
+              {/* Botón rápido agregar visita al día */}
+              <button
+                onClick={() => onAddVisitToDay(dateStr)}
+                className="w-full mb-1.5 flex items-center justify-center gap-0.5 py-0.5 rounded text-xs text-slate-300 hover:text-pink-500 hover:bg-pink-50 transition-colors"
+                title={`Agregar visita el ${formatDateOnly(dateStr)}`}>
+                <Plus size={11} />
+              </button>
+
+              {/* Tarjetas de eventos */}
+              {dayEvents.map(event => (
+                <WeekEventCard
+                  key={event.id}
+                  event={event}
+                  onClick={onEventClick}
+                  onAddVisit={onAddVisitToTask}
+                />
               ))}
+
               {dayEvents.length === 0 && (
-                <div className="h-full min-h-16 flex items-center justify-center">
+                <div className="flex items-center justify-center" style={{ minHeight: 60 }}>
                   <span className="text-slate-200 text-xs select-none">—</span>
                 </div>
               )}
@@ -521,24 +523,280 @@ function WeekView({ year, month, day, events, onEventClick }) {
   );
 }
 
-// ── Componente principal ──────────────────────────────────────────────────
-export default function CalendarView({ tasks }) {
+// ─── Modal detalle evento ──────────────────────────────────────────────────────
+
+function EventDetailModal({ event, onClose, onAddVisit }) {
+  if (!event) return null;
+  const isTask = event.type === 'task';
+  const task   = event.task;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+        {/* Header */}
+        <div className="px-5 py-4 text-white" style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide opacity-75">
+                {isTask ? '📋 Tarea' : '📅 Visita programada'}
+              </p>
+              <h3 className="font-bold text-base mt-0.5 truncate">{event.title}</h3>
+              <p className="text-xs opacity-80 mt-0.5">{event.subtitle}</p>
+            </div>
+            <button onClick={onClose}
+              className="p-1.5 text-white opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-20 rounded-lg ml-3 flex-shrink-0">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Cuerpo */}
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Fecha</p>
+              <p className="text-sm font-bold text-slate-800">{formatDateOnly(event.date)}</p>
+            </div>
+            {event.time && (
+              <div className="bg-slate-50 rounded-xl p-3">
+                <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Hora</p>
+                <p className="text-sm font-bold text-slate-800">{event.time}</p>
+              </div>
+            )}
+          </div>
+
+          {isTask && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Estado</p>
+                  <p className="text-sm font-bold text-slate-800">{event.status}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Urgencia</p>
+                  <p className="text-sm font-bold text-slate-800">{event.urgency || '—'}</p>
+                </div>
+              </div>
+              {task?.clientPhone && (
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
+                  <Phone size={14} className="text-slate-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Teléfono</p>
+                    <p className="text-sm font-bold text-slate-800">{task.clientPhone}</p>
+                  </div>
+                </div>
+              )}
+              {task?.clientAddress && (
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
+                  <MapPin size={14} className="text-slate-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Dirección</p>
+                    <p className="text-sm font-bold text-slate-800">{task.clientAddress}</p>
+                  </div>
+                </div>
+              )}
+              {task?.observations && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                  <p className="text-xs text-amber-600 font-semibold uppercase mb-1">Observaciones</p>
+                  <p className="text-sm text-amber-800">{task.observations}</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {!isTask && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Estado visita</p>
+                  <p className="text-sm font-bold text-slate-800">{event.visitStatus}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Urgencia</p>
+                  <p className="text-sm font-bold text-slate-800">{event.visit?.urgency || '—'}</p>
+                </div>
+              </div>
+              {event.visit?.technician && (
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
+                  <User size={14} className="text-slate-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Técnico</p>
+                    <p className="text-sm font-bold text-slate-800">{event.visit.technician}</p>
+                  </div>
+                </div>
+              )}
+              {task?.clientPhone && (
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
+                  <Phone size={14} className="text-slate-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Teléfono cliente</p>
+                    <p className="text-sm font-bold text-slate-800">{task.clientPhone}</p>
+                  </div>
+                </div>
+              )}
+              {event.visit?.observations && (
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Observaciones</p>
+                  <p className="text-sm text-slate-700">{event.visit.observations}</p>
+                </div>
+              )}
+              {event.visit?.closingObservations && (
+                <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+                  <p className="text-xs text-green-600 font-semibold uppercase mb-1">Cierre</p>
+                  <p className="text-sm text-green-800">{event.visit.closingObservations}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 flex gap-2">
+          {isTask && event.status !== 'Completado' && event.status !== 'Cancelado' && (
+            <button
+              onClick={() => { onClose(); onAddVisit(event.task, event.date); }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-white font-bold rounded-xl text-sm"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              <Plus size={15} />
+              Agregar visita
+            </button>
+          )}
+          <button onClick={onClose}
+            className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal selector de tarea (para agregar visita desde un día vacío) ──────────
+
+function TaskPickerModal({ tasks, defaultDate, user, onClose }) {
+  const [selected, setSelected] = useState(null);
+  const activeTasks = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
+
+  if (selected) {
+    return (
+      <AddVisitInlineForm
+        task={selected}
+        user={user}
+        defaultDate={defaultDate}
+        onClose={onClose}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="px-5 py-4 text-white flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide opacity-80">Nueva visita</p>
+            <h3 className="font-bold text-base mt-0.5">{formatDateOnly(defaultDate)}</h3>
+          </div>
+          <button onClick={onClose}
+            className="p-1.5 text-white opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-20 rounded-lg">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+            Selecciona la tarea
+          </p>
+          {activeTasks.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              <Calendar size={32} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No hay tareas activas</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-0.5">
+              {activeTasks.map(task => (
+                <button key={task.id} onClick={() => setSelected(task)}
+                  className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-pink-300 hover:bg-pink-50 transition-colors">
+
+                  {/* Nombre + estado */}
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{task.clientName}</p>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                      task.status === 'En Proceso' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>{task.status}</span>
+                  </div>
+
+                  {/* Teléfono */}
+                  {task.clientPhone && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Phone size={10} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-500">{task.clientPhone}</span>
+                    </div>
+                  )}
+
+                  {/* Orden de servicio */}
+                  {task.serviceOrder && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <FileText size={10} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-500">OS: {task.serviceOrder}</span>
+                    </div>
+                  )}
+
+                  {/* Fecha de la tarea */}
+                  {task.dueDate && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Calendar size={10} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-500">Vence: {formatDateOnly(task.dueDate)}</span>
+                    </div>
+                  )}
+
+                  {/* Tipo */}
+                  {task.type && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Wrench size={10} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-400">{task.type}</span>
+                    </div>
+                  )}
+
+                  {/* Observación general */}
+                  {task.observations && (
+                    <p className="text-xs text-slate-400 italic mt-1 truncate">
+                      📝 {task.observations}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+export default function CalendarView({ tasks, user }) {
   const today = new Date();
-  const [viewMode, setViewMode]       = useState('month');
-  const [currentDate, setCurrentDate] = useState({
+  const [viewMode, setViewMode]         = useState('month');
+  const [currentDate, setCurrentDate]   = useState({
     year:  today.getFullYear(),
     month: today.getMonth(),
     day:   today.getDate(),
   });
-  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedEvent, setSelectedEvent]   = useState(null);
+  // { task, defaultDate } cuando se quiere agregar visita directo
+  const [addVisitContext, setAddVisitContext] = useState(null);
+  // dateStr cuando se clickea el + de un día (sin tarea preseleccionada)
+  const [dayPickerDate, setDayPickerDate]    = useState(null);
 
   const events = useMemo(() => getCalendarEvents(tasks), [tasks]);
 
   const navigate = (dir) => {
     if (viewMode === 'month') {
       setCurrentDate(prev => {
-        let m = prev.month + dir;
-        let y = prev.year;
+        let m = prev.month + dir, y = prev.year;
         if (m > 11) { m = 0; y++; }
         if (m < 0)  { m = 11; y--; }
         return { ...prev, month: m, year: y };
@@ -552,8 +810,18 @@ export default function CalendarView({ tasks }) {
     }
   };
 
-  const goToToday = () => {
+  const goToToday = () =>
     setCurrentDate({ year: today.getFullYear(), month: today.getMonth(), day: today.getDate() });
+
+  // Abre el formulario de agregar visita (con tarea ya elegida)
+  const handleAddVisitToTask = (task, defaultDate) => {
+    setSelectedEvent(null);
+    setAddVisitContext({ task, defaultDate: defaultDate || new Date().toISOString().split('T')[0] });
+  };
+
+  // Abre el selector de tarea primero (clic en + de un día)
+  const handleAddVisitToDay = (dateStr) => {
+    setDayPickerDate(dateStr);
   };
 
   const title = viewMode === 'month'
@@ -566,23 +834,6 @@ export default function CalendarView({ tasks }) {
         return `${start.getDate()} ${MONTHS[start.getMonth()]} — ${end.getDate()} ${MONTHS[end.getMonth()]} ${end.getFullYear()}`;
       })();
 
-  // Solo visitas del mes/semana actual para el contador
-  const visibleEvents = viewMode === 'month'
-    ? events.filter(e => {
-        const [y, m] = e.date.split('-').map(Number);
-        return y === currentDate.year && m === currentDate.month + 1;
-      })
-    : (() => {
-        const start = new Date(currentDate.year, currentDate.month, currentDate.day);
-        start.setDate(start.getDate() - start.getDay());
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        return events.filter(e => {
-          const d = new Date(e.date);
-          return d >= start && d <= end;
-        });
-      })();
-
   return (
     <div className="space-y-4">
 
@@ -591,70 +842,67 @@ export default function CalendarView({ tasks }) {
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Calendario</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {visibleEvents.length} visita{visibleEvents.length !== 1 ? 's' : ''} en este período
+            {events.length} evento{events.length !== 1 ? 's' : ''} en total
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 flex-wrap gap-2">
+        <div className="flex items-center space-x-2">
           {/* Toggle vista */}
           <div className="flex bg-slate-100 rounded-xl p-1">
             <button onClick={() => setViewMode('month')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'month' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                viewMode === 'month'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}>
               <Calendar size={14} /><span>Mes</span>
             </button>
             <button onClick={() => setViewMode('week')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'week' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                viewMode === 'week'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}>
               <CalendarDays size={14} /><span>Semana</span>
             </button>
           </div>
 
           {/* Navegación */}
-          <button onClick={() => navigate(-1)}
-            className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-            <ChevronLeft size={16} className="text-slate-600" />
-          </button>
-          <button onClick={goToToday}
-            className="px-3 py-2 text-xs font-bold text-white rounded-lg transition-colors"
-            style={{ background: '#D61672' }}>
-            Hoy
-          </button>
-          <button onClick={() => navigate(1)}
-            className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-            <ChevronRight size={16} className="text-slate-600" />
-          </button>
-        </div>
-      </div>
-
-      {/* Título del período + leyenda */}
-      <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-base font-bold text-slate-800">{title}</h3>
-        <div className="flex items-center gap-4 text-xs text-slate-500">
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-sm border-l-2 bg-pink-50" style={{ borderLeftColor: '#D61672' }} />
-            <span>Programada</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-sm border-l-2 bg-green-50 border-green-500" />
-            <span>Realizada</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-sm border-l-2 bg-amber-50 border-amber-400" />
-            <span>Cancelada</span>
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <button onClick={() => navigate(-1)}
+              className="p-2 hover:bg-slate-50 text-slate-600 transition-colors border-r border-slate-200">
+              <ChevronLeft size={16} />
+            </button>
+            <button onClick={goToToday}
+              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              Hoy
+            </button>
+            <button onClick={() => navigate(1)}
+              className="p-2 hover:bg-slate-50 text-slate-600 transition-colors border-l border-slate-200">
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Vista calendario */}
+      {/* Título periodo */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-slate-700 capitalize">{title}</h3>
+        {viewMode === 'week' && (
+          <p className="text-xs text-slate-400">
+            Haz clic en <span className="font-semibold" style={{ color: '#D61672' }}>+ Visita</span> en una tarjeta o en el <span className="font-semibold">+</span> del día para agendar
+          </p>
+        )}
+      </div>
+
+      {/* Vista */}
       {viewMode === 'month' ? (
         <MonthView
           year={currentDate.year}
           month={currentDate.month}
           events={events}
           onEventClick={setSelectedEvent}
+          onAddVisitToTask={handleAddVisitToTask}
         />
       ) : (
         <WeekView
@@ -663,12 +911,38 @@ export default function CalendarView({ tasks }) {
           day={currentDate.day}
           events={events}
           onEventClick={setSelectedEvent}
+          onAddVisitToTask={handleAddVisitToTask}
+          onAddVisitToDay={handleAddVisitToDay}
         />
       )}
 
-      {/* Modal detalle */}
+      {/* Modal detalle evento */}
       {selectedEvent && (
-        <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+        <EventDetailModal
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+          onAddVisit={handleAddVisitToTask}
+        />
+      )}
+
+      {/* Modal agregar visita a tarea específica */}
+      {addVisitContext && (
+        <AddVisitInlineForm
+          task={addVisitContext.task}
+          user={user}
+          defaultDate={addVisitContext.defaultDate}
+          onClose={() => setAddVisitContext(null)}
+        />
+      )}
+
+      {/* Modal selector de tarea (desde + de un día) */}
+      {dayPickerDate && (
+        <TaskPickerModal
+          tasks={tasks}
+          defaultDate={dayPickerDate}
+          user={user}
+          onClose={() => setDayPickerDate(null)}
+        />
       )}
     </div>
   );
