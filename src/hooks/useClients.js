@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 
 export function useClients(user) {
@@ -7,7 +7,7 @@ export function useClients(user) {
 
   useEffect(() => {
     if (!user) return;
-    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'clients');
+    const colRef    = collection(db, 'artifacts', appId, 'public', 'data', 'clients');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setClients(data);
@@ -15,20 +15,21 @@ export function useClients(user) {
     return () => unsubscribe();
   }, [user]);
 
+  // ─── Crear / actualizar cliente desde TaskForm ─────────────────────────────
   const saveClient = async (clientData) => {
     if (!user) return null;
-    // ✅ CORREGIDO: protección contra identification undefined o vacío
     if (!clientData.identification || !clientData.identification.trim()) return null;
 
     const clientId = clientData.identification.replace(/\s/g, '');
     const client = {
-      id: clientId,
-      name: clientData.clientName,
-      phone: clientData.clientPhone || '',
-      address: clientData.clientAddress || '',
+      id:             clientId,
+      name:           clientData.clientName,
+      phone:          clientData.clientPhone   || '',
+      address:        clientData.clientAddress || '',
       identification: clientData.identification,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      active:         true,
+      createdAt:      new Date().toISOString(),
+      updatedAt:      new Date().toISOString(),
     };
     try {
       await setDoc(
@@ -38,10 +39,104 @@ export function useClients(user) {
       );
       return client;
     } catch (error) {
-      console.error("Error al guardar cliente:", error);
+      console.error('Error al guardar cliente:', error);
       return null;
     }
   };
 
-  return { clients, saveClient };
+  // ─── Crear cliente directamente desde ClientsManager ──────────────────────
+  const createClient = async ({ name, identification, phone, address }) => {
+    if (!user || !identification?.trim() || !name?.trim()) return false;
+    const clientId = identification.replace(/\s/g, '');
+    try {
+      await setDoc(
+        doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId),
+        {
+          id:             clientId,
+          name:           name.trim(),
+          identification: identification.trim(),
+          phone:          phone?.trim()   || '',
+          address:        address?.trim() || '',
+          active:         true,
+          createdAt:      new Date().toISOString(),
+          updatedAt:      new Date().toISOString(),
+        }
+      );
+      return true;
+    } catch (error) {
+      console.error('Error al crear cliente:', error);
+      return false;
+    }
+  };
+
+  // ─── Editar cliente existente ──────────────────────────────────────────────
+  const updateClient = async (id, { name, phone, address }) => {
+    if (!user || !name?.trim()) return false;
+    try {
+      await updateDoc(
+        doc(db, 'artifacts', appId, 'public', 'data', 'clients', id),
+        {
+          name:      name.trim(),
+          phone:     phone?.trim()   || '',
+          address:   address?.trim() || '',
+          updatedAt: new Date().toISOString(),
+        }
+      );
+      return true;
+    } catch (error) {
+      console.error('Error al actualizar cliente:', error);
+      return false;
+    }
+  };
+
+  // ─── Inactivar / reactivar cliente ────────────────────────────────────────
+  const setClientActive = async (id, active) => {
+    if (!user) return false;
+    try {
+      await updateDoc(
+        doc(db, 'artifacts', appId, 'public', 'data', 'clients', id),
+        { active, updatedAt: new Date().toISOString() }
+      );
+      return true;
+    } catch (error) {
+      console.error('Error al cambiar estado cliente:', error);
+      return false;
+    }
+  };
+
+  // ─── Importar lote de clientes ─────────────────────────────────────────────
+  const importClients = async (rows) => {
+    if (!user) return { ok: 0, errors: [] };
+    let ok     = 0;
+    const errors = [];
+    for (const row of rows) {
+      if (!row.identification?.trim() || !row.name?.trim()) {
+        errors.push({ row, reason: 'Nombre o cédula vacíos' });
+        continue;
+      }
+      const clientId = row.identification.replace(/\s/g, '');
+      try {
+        await setDoc(
+          doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId),
+          {
+            id:             clientId,
+            name:           row.name.trim(),
+            identification: row.identification.trim(),
+            phone:          row.phone?.trim()   || '',
+            address:        row.address?.trim() || '',
+            active:         true,
+            createdAt:      new Date().toISOString(),
+            updatedAt:      new Date().toISOString(),
+          },
+          { merge: true }
+        );
+        ok++;
+      } catch (err) {
+        errors.push({ row, reason: err.message });
+      }
+    }
+    return { ok, errors };
+  };
+
+  return { clients, saveClient, createClient, updateClient, setClientActive, importClients };
 }

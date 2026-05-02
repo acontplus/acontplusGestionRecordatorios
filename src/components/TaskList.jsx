@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, CheckCircle, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, CheckCircle, Filter, X, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import TaskCard from './TaskCard.jsx';
 import CompleteModal from './CompleteModal.jsx';
 import Pagination from './Pagination.jsx';
@@ -16,7 +16,8 @@ const INITIAL_FILTERS = {
   dueDateTo: '',
 };
 
-export default function TaskList({ tasks, onEdit, onDelete, onComplete, user }) {
+// ✅ Mejora 1: se añade el prop onNewTask para el botón "Nueva tarea"
+export default function TaskList({ tasks, onEdit, onDelete, onComplete, onNewTask, user }) {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [completingTask, setCompletingTask] = useState(null);
@@ -70,11 +71,25 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, user }) 
 
   return (
     <div className="space-y-4">
+
+      {/* ✅ Cabecera con botón "Nueva tarea" */}
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">Tareas</h2>
-        <div className="flex items-center space-x-2 text-sm text-slate-500">
-          <span>{filteredTasks.length} de {tasks.length} registros</span>
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Tareas</h2>
+          <div className="flex items-center space-x-2 text-sm text-slate-500 mt-0.5">
+            <span>{filteredTasks.length} de {tasks.length} registros</span>
+          </div>
         </div>
+        {onNewTask && (
+          <button
+            onClick={onNewTask}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-white font-bold rounded-xl text-sm shadow-sm transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+          >
+            <Plus size={15} />
+            Nueva tarea
+          </button>
+        )}
       </div>
 
       {/* Barra búsqueda + filtros */}
@@ -155,7 +170,7 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, user }) 
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Usuario</label>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Creado por</label>
               <select value={filters.createdBy} onChange={(e) => handleFilter('createdBy', e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white"
                 onFocus={e => e.target.style.borderColor = '#D61672'}
@@ -230,12 +245,12 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, user }) 
               )}
               {filters.dateFrom && (
                 <span className="flex items-center space-x-1 px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium">
-                  <span>Desde: {filters.dateFrom}</span><button onClick={() => handleFilter('dateFrom', '')}><X size={12} /></button>
+                  <span>Creado desde: {filters.dateFrom}</span><button onClick={() => handleFilter('dateFrom', '')}><X size={12} /></button>
                 </span>
               )}
               {filters.dateTo && (
                 <span className="flex items-center space-x-1 px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium">
-                  <span>Hasta: {filters.dateTo}</span><button onClick={() => handleFilter('dateTo', '')}><X size={12} /></button>
+                  <span>Creado hasta: {filters.dateTo}</span><button onClick={() => handleFilter('dateTo', '')}><X size={12} /></button>
                 </span>
               )}
               {filters.dueDateFrom && (

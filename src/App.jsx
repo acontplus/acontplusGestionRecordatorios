@@ -15,11 +15,12 @@ import Reports from './components/Reports.jsx';
 import VisitsReport from './components/VisitsReport.jsx';
 import BillingReport from './components/BillingReport.jsx';
 import ExportConfigManager from './components/ExportConfigManager.jsx';
+import ClientsManager from './components/ClientsManager.jsx';
 import Toast from './components/Toast.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import {
-  Home, Wrench, FileText, Plus, Bell, BellOff,
-  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet
+  Home, Wrench, FileText, Bell, BellOff,
+  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users
 } from 'lucide-react';
 
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
@@ -33,7 +34,9 @@ export default function App() {
   const [showExportConfig, setShowExportConfig] = useState(false);
 
   const { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted } = useTasks(user);
-  const { clients, saveClient }   = useClients(user);
+  const {
+    clients, saveClient, createClient, updateClient, setClientActive, importClients
+  } = useClients(user);
   const { serviceTypes }          = useServiceTypes(user);
   const {
     configs:      exportConfigs,
@@ -126,10 +129,10 @@ export default function App() {
 
           <NavItem icon={<Home />}         label="Panel"      isActive={activeTab === 'dashboard'}     onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<Wrench />}       label="Tareas"     isActive={activeTab === 'list'}          onClick={() => setActiveTab('list')} />
-          <NavItem icon={<Plus />}         label="Nueva"      isActive={activeTab === 'form'}          onClick={() => { setEditingTask(null); setActiveTab('form'); }} />
+          <NavItem icon={<Users />}        label="Clientes"   isActive={activeTab === 'clients'}       onClick={() => setActiveTab('clients')} />
           <NavItem icon={<CalendarDays />} label="Calendario" isActive={activeTab === 'calendar'}      onClick={() => setActiveTab('calendar')} />
           <NavItem icon={<FileText />}     label="Reportes"   isActive={activeTab === 'reports'}       onClick={() => setActiveTab('reports')} />
-          <NavItem icon={<ClipboardList />} label="Visitas"    isActive={activeTab === 'visits-report'} onClick={() => setActiveTab('visits-report')} />
+          <NavItem icon={<ClipboardList />}label="Visitas"    isActive={activeTab === 'visits-report'} onClick={() => setActiveTab('visits-report')} />
           <NavItem icon={<Wallet />}       label="Cobros"     isActive={activeTab === 'billing'}       onClick={() => setActiveTab('billing')} />
 
           {/* Logout desktop */}
@@ -205,7 +208,15 @@ export default function App() {
             onEdit={handleEdit}
             onDelete={deleteTask}
             onComplete={markAsCompleted}
+            onNewTask={() => { setEditingTask(null); setActiveTab('form'); }}
             user={user}
+          />
+        )}
+        {activeTab === 'clients' && (
+          <ClientsManager
+            clients={clients}
+            tasks={tasks}
+            useClientsHook={{ createClient, updateClient, setClientActive, importClients }}
           />
         )}
         {activeTab === 'form' && (
