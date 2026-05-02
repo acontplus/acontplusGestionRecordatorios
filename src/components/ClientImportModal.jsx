@@ -35,7 +35,7 @@ async function parseFile(file) {
         const data = new Uint8Array(e.target.result);
         const wb   = XLSX.read(data, { type: 'array' });
         const ws   = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
         resolve(rows);
       } catch (err) {
         reject(err);
@@ -124,6 +124,7 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
   const [rows,        setRows]        = useState([]);
   const [isParsing,   setIsParsing]   = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [progress,    setProgress]    = useState({ done: 0, total: 0 });
   const [result,      setResult]      = useState(null);
   const [dragOver,    setDragOver]    = useState(false);
   const fileRef = useRef();
@@ -180,8 +181,12 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
   const handleRemoveRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx));
 
   const handleConfirmImport = async () => {
+    const toImport = validated.filter(r => r.valid);
+    setProgress({ done: 0, total: toImport.length });
     setIsImporting(true);
-    const res = await onImport(validated.filter(r => r.valid));
+    const res = await onImport(toImport, (done, total) => {
+      setProgress({ done, total });
+    });
     setResult(res);
     setStep('result');
     setIsImporting(false);
@@ -438,19 +443,45 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
           {step === 'preview' && (
             <>
               <button onClick={() => { setStep('upload'); setRows([]); }}
-                className="flex-1 py-2.5 border border-slate-200 bg-white rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                disabled={isImporting}
+                className="flex-1 py-2.5 border border-slate-200 bg-white rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40">
                 ← Volver
               </button>
-              <button
-                onClick={handleConfirmImport}
-                disabled={isImporting || validCount === 0}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-                {isImporting
-                  ? <><Loader2 size={14} className="animate-spin" /> Importando...</>
-                  : <><Users size={14} /> Importar {validCount} cliente{validCount !== 1 ? 's' : ''}</>
-                }
-              </button>
+
+              <div className="flex-1">
+                {isImporting ? (
+                  /* Barra de progreso */
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span style={{ color: '#D61672' }}>
+                        Guardando {progress.done} de {progress.total} clientes...
+                      </span>
+                      <span className="text-slate-500">
+                        {progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
+                          background: 'linear-gradient(135deg, #D61672, #FFA901)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Botón importar normal */
+                  <button
+                    onClick={handleConfirmImport}
+                    disabled={validCount === 0}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+                    <Users size={14} />
+                    Importar {validCount} cliente{validCount !== 1 ? 's' : ''}
+                  </button>
+                )}
+              </div>
             </>
           )}
           {step === 'result' && (

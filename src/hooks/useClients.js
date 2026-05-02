@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 
 export function useClients(user) {
@@ -110,39 +110,54 @@ export function useClients(user) {
     }
   };
 
-  // ─── Importar lote de clientes ─────────────────────────────────────────────
-  const importClients = async (rows) => {
+  // ─── Importar lote de clientes con writeBatch (grupos de 100) ─────────────
+  // onProgress(done, total) se llama después de cada batch para actualizar la barra
+  const importClients = async (rows, onProgress) => {
     if (!user) return { ok: 0, errors: [] };
-    let ok     = 0;
+
+    const BATCH_SIZE = 100;
+    let ok = 0;
     const errors = [];
-    for (const row of rows) {
-      if (!row.identification?.trim() || !row.name?.trim()) {
-        errors.push({ row, reason: 'Nombre o cédula vacíos' });
-        continue;
+    const total = rows.length;
+
+    // Dividir en grupos de 100
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const chunk = rows.slice(i, i + BATCH_SIZE);
+      const batch = writeBatch(db);
+
+      for (const row of chunk) {
+        if (!row.identification?.trim() || !row.name?.trim()) {
+          errors.push({ row, reason: 'Nombre o cédula vacíos' });
+          continue;
+        }
+        const clientId = row.identification.replace(/\s/g, '');
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId);
+        batch.set(ref, {
+          id:             clientId,
+          name:           row.name.trim(),
+          identification: row.identification.trim(),
+          phone:          row.phone?.trim()   || '',
+          address:        row.address?.trim() || '',
+          email:          row.email?.trim()   || '',
+          foreign:        row.foreign         ?? false,
+          active:         true,
+          createdAt:      new Date().toISOString(),
+          updatedAt:      new Date().toISOString(),
+        }, { merge: true });
       }
-      const clientId = row.identification.replace(/\s/g, '');
+
       try {
-        await setDoc(
-          doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId),
-          {
-            id:             clientId,
-            name:           row.name.trim(),
-            identification: row.identification.trim(),
-            phone:          row.phone?.trim()   || '',
-            address:        row.address?.trim() || '',
-            email:          row.email?.trim()   || '',
-            foreign:        row.foreign         ?? false,
-            active:         true,
-            createdAt:      new Date().toISOString(),
-            updatedAt:      new Date().toISOString(),
-          },
-          { merge: true }
-        );
-        ok++;
+        await batch.commit();
+        ok += chunk.filter(r => r.identification?.trim() && r.name?.trim()).length;
       } catch (err) {
-        errors.push({ row, reason: err.message });
+        // Si el batch falla, registrar todos los del chunk como error
+        chunk.forEach(row => errors.push({ row, reason: err.message }));
       }
+
+      // Notificar progreso después de cada batch
+      if (onProgress) onProgress(Math.min(i + BATCH_SIZE, total), total);
     }
+
     return { ok, errors };
   };
 
