@@ -20,7 +20,9 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
     clientName:      '',
     clientPhone:     '',
     clientAddress:   '',
-    serviceType:     '',   // ← nuevo campo
+    clientEmail:     '',
+    serviceType:     '',
+    foreign:         false,
     status:          'Pendiente',
     observations:    '',
   });
@@ -138,60 +140,88 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
 
           {/* Campos nuevo cliente */}
           {!selectedClient && (
-            <div className="space-y-4 p-4 bg-pink-50 rounded-xl border border-pink-100">
+            <div className="space-y-3 p-4 bg-pink-50 rounded-xl border border-pink-100">
               <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#D61672' }}>
                 Datos del nuevo cliente
               </p>
 
-              <div>
-                <label className={labelClass}>
-                  <CreditCard size={12} className="inline mr-1" />Cédula / RUC
-                </label>
-                <input
-                  name="identification"
-                  value={formData.identification}
-                  onChange={handleChange}
-                  placeholder="Ej: 0912345678"
-                  className={`${inputClass} font-mono`}
-                  onFocus={e => e.target.style.borderColor = '#D61672'}
-                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>
-                    <User size={12} className="inline mr-1" />Nombre
-                  </label>
-                  <input
-                    name="clientName"
-                    value={formData.clientName}
-                    onChange={handleChange}
-                    placeholder="Nombre completo"
-                    className={`${inputClass} ${errors.clientName ? 'border-red-400' : ''}`}
-                    onFocus={e => e.target.style.borderColor = '#D61672'}
-                    onBlur={e => e.target.style.borderColor = errors.clientName ? '#f87171' : '#e2e8f0'}
-                  />
+              {/* Fila 1: Toggle extranjero + Cédula/RUC */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      foreign: !prev.foreign,
+                      identification: '',
+                    }))}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer ${
+                      formData.foreign ? 'bg-blue-500' : 'bg-slate-200'
+                    }`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.foreign ? 'translate-x-4' : 'translate-x-0.5'
+                    }`} />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-blue-800 truncate">🌐 Cliente extranjero</p>
+                    <p className="text-xs text-blue-600 leading-tight">
+                      {formData.foreign ? 'Pasaporte / doc. extranjero' : 'Solo números, 10 o 13 dígitos'}
+                    </p>
+                  </div>
                 </div>
+
                 <div>
                   <label className={labelClass}>
-                    <Phone size={12} className="inline mr-1" />Teléfono
+                    <CreditCard size={12} className="inline mr-1" />
+                    {formData.foreign ? 'Pasaporte / ID' : 'Cédula / RUC'}
+                    <span className="text-red-400 ml-1">*</span>
                   </label>
                   <input
-                    name="clientPhone"
-                    value={formData.clientPhone}
-                    onChange={handleChange}
-                    placeholder="Número de contacto"
-                    className={inputClass}
+                    name="identification"
+                    value={formData.identification}
+                    onChange={e => {
+                      const val = formData.foreign
+                        ? e.target.value
+                        : e.target.value.replace(/\D/g, '');
+                      setFormData(prev => ({ ...prev, identification: val }));
+                      if (errors.identification) setErrors(prev => ({ ...prev, identification: null }));
+                    }}
+                    placeholder={formData.foreign ? 'Pasaporte...' : 'Ej: 0912345678'}
+                    className={`${inputClass} font-mono`}
+                    type={formData.foreign ? 'text' : 'tel'}
+                    maxLength={formData.foreign ? 30 : 13}
                     onFocus={e => e.target.style.borderColor = '#D61672'}
                     onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                   />
                 </div>
               </div>
 
+              {/* Fila 2: Nombre — ancho completo */}
+              <div>
+                <label className={labelClass}>
+                  <User size={12} className="inline mr-1" />Nombre
+                  <span className="text-red-400 ml-1">*</span>
+                </label>
+                <input
+                  name="clientName"
+                  value={formData.clientName}
+                  onChange={handleChange}
+                  placeholder="Nombre completo o razón social"
+                  className={`${inputClass} ${errors.clientName ? 'border-red-400' : ''}`}
+                  onFocus={e => e.target.style.borderColor = '#D61672'}
+                  onBlur={e => e.target.style.borderColor = errors.clientName ? '#f87171' : '#e2e8f0'}
+                />
+                {errors.clientName && (
+                  <p className="text-xs text-red-500 mt-1">⚠️ {errors.clientName}</p>
+                )}
+              </div>
+
+              {/* Fila 3: Dirección — ancho completo */}
               <div>
                 <label className={labelClass}>
                   <MapPin size={12} className="inline mr-1" />Dirección
+                  <span className="text-red-400 ml-1">*</span>
                 </label>
                 <input
                   name="clientAddress"
@@ -203,6 +233,41 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
                   onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                 />
               </div>
+
+              {/* Fila 4: Teléfono + Email */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>
+                    <Phone size={12} className="inline mr-1" />Teléfono
+                    <span className="text-red-400 ml-1">*</span>
+                  </label>
+                  <input
+                    name="clientPhone"
+                    value={formData.clientPhone}
+                    onChange={handleChange}
+                    placeholder="Número de contacto"
+                    className={inputClass}
+                    onFocus={e => e.target.style.borderColor = '#D61672'}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    <span className="inline mr-1">✉</span>Email
+                  </label>
+                  <input
+                    name="clientEmail"
+                    value={formData.clientEmail || ''}
+                    onChange={handleChange}
+                    placeholder="correo@ejemplo.com"
+                    type="email"
+                    className={inputClass}
+                    onFocus={e => e.target.style.borderColor = '#D61672'}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                </div>
+              </div>
+
             </div>
           )}
 

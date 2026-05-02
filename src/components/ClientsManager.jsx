@@ -16,15 +16,30 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
     identification: initial?.identification || '',
     phone:          initial?.phone          || '',
     address:        initial?.address        || '',
+    email:          initial?.email          || '',
+    foreign:        initial?.foreign        ?? false,
   });
   const [errors, setErrors] = useState({});
 
   const validate = () => {
     const errs = {};
-    if (!form.name.trim())           errs.name           = 'El nombre es obligatorio';
-    if (!form.identification.trim()) errs.identification = 'La cédula/RUC es obligatoria';
+    if (!form.name.trim())
+      errs.name = 'El nombre es obligatorio';
+    if (!form.identification.trim())
+      errs.identification = 'La cédula/RUC o pasaporte es obligatorio';
     else if (!isEdit && existingIds.has(form.identification.replace(/\s/g, '')))
       errs.identification = 'Ya existe un cliente con este documento';
+    else if (!form.foreign) {
+      const digits = form.identification.replace(/\s/g, '');
+      if (!/^\d+$/.test(digits))
+        errs.identification = 'Solo se permiten números para clientes nacionales';
+      else if (digits.length !== 10 && digits.length !== 13)
+        errs.identification = 'Debe tener 10 dígitos (cédula) o 13 dígitos (RUC)';
+    }
+    if (!form.phone.trim())
+      errs.phone = 'El teléfono es obligatorio';
+    if (!form.address.trim())
+      errs.address = 'La dirección es obligatoria';
     return errs;
   };
 
@@ -47,7 +62,57 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
         {isEdit ? '✏️ Editar cliente' : '➕ Nuevo cliente'}
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-3">
+
+        {/* Fila 1: Toggle extranjero + Cédula/RUC */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setForm(p => ({ ...p, foreign: !p.foreign, identification: '' }));
+                setErrors(p => ({ ...p, identification: '' }));
+              }}
+              disabled={isEdit}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+                form.foreign ? 'bg-blue-500' : 'bg-slate-200'
+              } ${isEdit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                form.foreign ? 'translate-x-4' : 'translate-x-0.5'
+              }`} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-blue-800 truncate">🌐 Cliente extranjero</p>
+              <p className="text-xs text-blue-600 leading-tight">
+                {form.foreign ? 'Pasaporte / doc. extranjero' : 'Solo números, 10 o 13 dígitos'}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+              {form.foreign ? 'Pasaporte / ID' : 'Cédula / RUC'} <span className="text-red-400">*</span>
+            </label>
+            <input
+              type={form.foreign ? 'text' : 'tel'}
+              value={form.identification}
+              onChange={e => {
+                const val = form.foreign ? e.target.value : e.target.value.replace(/\D/g, '');
+                setForm(p => ({ ...p, identification: val }));
+                setErrors(p => ({ ...p, identification: '' }));
+              }}
+              placeholder={form.foreign ? 'Pasaporte...' : 'Ej: 1712345678'}
+              className={`${inp(errors.identification)} font-mono`}
+              disabled={isEdit}
+              maxLength={form.foreign ? 30 : 13}
+            />
+            {isEdit && <p className="text-xs text-slate-400 mt-0.5">No puede modificarse</p>}
+            {errors.identification && <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>}
+          </div>
+        </div>
+
+        {/* Fila 2: Nombre — ancho completo */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
             Nombre <span className="text-red-400">*</span>
@@ -59,35 +124,41 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
           {errors.name && <p className="text-xs text-red-500 mt-1">⚠️ {errors.name}</p>}
         </div>
 
+        {/* Fila 3: Dirección — ancho completo */}
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Cédula / RUC <span className="text-red-400">*</span>
+            Dirección <span className="text-red-400">*</span>
           </label>
-          <input type="text" value={form.identification}
-            onChange={e => { setForm(p => ({ ...p, identification: e.target.value })); setErrors(p => ({ ...p, identification: '' })); }}
-            placeholder="Ej: 1712345678"
-            className={`${inp(errors.identification)} font-mono`}
-            disabled={isEdit} // no permitir cambiar el ID en edición
-          />
-          {isEdit && <p className="text-xs text-slate-400 mt-0.5">La cédula/RUC no puede modificarse</p>}
-          {errors.identification && <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>}
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Teléfono</label>
-          <input type="text" value={form.phone}
-            onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-            placeholder="0991234567"
-            className={inp()} />
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Dirección</label>
           <input type="text" value={form.address}
-            onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+            onChange={e => { setForm(p => ({ ...p, address: e.target.value })); setErrors(p => ({ ...p, address: '' })); }}
             placeholder="Dirección del cliente"
-            className={inp()} />
+            className={inp(errors.address)} />
+          {errors.address && <p className="text-xs text-red-500 mt-1">⚠️ {errors.address}</p>}
         </div>
+
+        {/* Fila 4: Teléfono + Email */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+              Teléfono <span className="text-red-400">*</span>
+            </label>
+            <input type="tel" value={form.phone}
+              onChange={e => { setForm(p => ({ ...p, phone: e.target.value })); setErrors(p => ({ ...p, phone: '' })); }}
+              placeholder="0991234567"
+              className={inp(errors.phone)} />
+            {errors.phone && <p className="text-xs text-red-500 mt-1">⚠️ {errors.phone}</p>}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+              Email
+            </label>
+            <input type="email" value={form.email}
+              onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+              placeholder="correo@ejemplo.com"
+              className={inp(false)} />
+          </div>
+        </div>
+
       </div>
 
       <div className="flex gap-2 pt-1">
@@ -114,7 +185,14 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${client.active ? 'bg-green-400' : 'bg-slate-300'}`} />
           <div>
-            <p className="text-sm font-semibold text-slate-800">{client.name}</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="text-sm font-semibold text-slate-800">{client.name}</p>
+              {client.foreign && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                  🌐 Extranjero
+                </span>
+              )}
+            </div>
             {client.identification && (
               <div className="flex items-center gap-1 mt-0.5">
                 <CreditCard size={10} className="text-slate-400" />

@@ -26,7 +26,9 @@ export function useClients(user) {
       name:           clientData.clientName,
       phone:          clientData.clientPhone   || '',
       address:        clientData.clientAddress || '',
+      email:          clientData.clientEmail   || clientData.email || '',
       identification: clientData.identification,
+      foreign:        clientData.foreign       ?? false,
       active:         true,
       createdAt:      new Date().toISOString(),
       updatedAt:      new Date().toISOString(),
@@ -45,7 +47,7 @@ export function useClients(user) {
   };
 
   // ─── Crear cliente directamente desde ClientsManager ──────────────────────
-  const createClient = async ({ name, identification, phone, address }) => {
+  const createClient = async ({ name, identification, phone, address, email, foreign }) => {
     if (!user || !identification?.trim() || !name?.trim()) return false;
     const clientId = identification.replace(/\s/g, '');
     try {
@@ -57,6 +59,8 @@ export function useClients(user) {
           identification: identification.trim(),
           phone:          phone?.trim()   || '',
           address:        address?.trim() || '',
+          email:          email?.trim()   || '',
+          foreign:        foreign         ?? false,
           active:         true,
           createdAt:      new Date().toISOString(),
           updatedAt:      new Date().toISOString(),
@@ -70,7 +74,7 @@ export function useClients(user) {
   };
 
   // ─── Editar cliente existente ──────────────────────────────────────────────
-  const updateClient = async (id, { name, phone, address }) => {
+  const updateClient = async (id, { name, phone, address, email, foreign }) => {
     if (!user || !name?.trim()) return false;
     try {
       await updateDoc(
@@ -79,6 +83,8 @@ export function useClients(user) {
           name:      name.trim(),
           phone:     phone?.trim()   || '',
           address:   address?.trim() || '',
+          email:     email?.trim()   || '',
+          foreign:   foreign         ?? false,
           updatedAt: new Date().toISOString(),
         }
       );
@@ -124,6 +130,8 @@ export function useClients(user) {
             identification: row.identification.trim(),
             phone:          row.phone?.trim()   || '',
             address:        row.address?.trim() || '',
+            email:          row.email?.trim()   || '',
+            foreign:        row.foreign         ?? false,
             active:         true,
             createdAt:      new Date().toISOString(),
             updatedAt:      new Date().toISOString(),

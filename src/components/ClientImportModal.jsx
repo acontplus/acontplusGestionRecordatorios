@@ -6,10 +6,11 @@ import {
 
 // ─── Plantilla de descarga ─────────────────────────────────────────────────────
 function downloadTemplate() {
-  const headers = ['Nombre', 'Cedula_RUC', 'Telefono', 'Direccion'];
+  const headers = ['Nombre', 'Cedula_RUC', 'Telefono', 'Direccion', 'Extranjero'];
   const example = [
-    ['Juan Pérez', '1712345678', '0991234567', 'Av. Principal 123'],
-    ['Empresa ABC S.A.', '1790123456001', '022345678', 'Calle 5 de Junio 456'],
+    ['Juan Pérez', '1712345678', '0991234567', 'Av. Principal 123', 'NO'],
+    ['Empresa ABC S.A.', '1790123456001', '022345678', 'Calle 5 de Junio 456', 'NO'],
+    ['John Smith', 'A1234567', '0998765432', 'Edificio Centro', 'SI'],
   ];
   const csv = [headers, ...example]
     .map(r => r.map(c => `"${c}"`).join(','))
@@ -44,7 +45,45 @@ async function parseFile(file) {
   });
 }
 
-// Mapear encabezados flexibles a campos internos
+// ─── Validación completa por fila ─────────────────────────────────────────────
+function validateRow(row, existingIds, seenInFile, rowIndex) {
+  const errors = [];
+
+  // 1. Nombre vacío
+  if (!row.name?.trim())
+    errors.push('Nombre vacío');
+
+  // 2. Cédula/RUC vacía
+  if (!row.identification?.trim()) {
+    errors.push('Cédula/RUC o pasaporte vacío');
+  } else {
+    const clean = row.identification.replace(/\s/g, '');
+
+    if (!row.foreign) {
+      // 3. Solo números para nacionales
+      if (!/^\d+$/.test(clean))
+        errors.push('Solo se permiten números para clientes nacionales');
+      // 4. Longitud 10 o 13 para nacionales
+      else if (clean.length !== 10 && clean.length !== 13)
+        errors.push(`Longitud inválida: tiene ${clean.length} dígito${clean.length !== 1 ? 's' : ''} (debe ser 10 o 13)`);
+    }
+
+    // 5. Duplicado dentro del archivo
+    if (seenInFile.has(clean)) {
+      const prevRow = seenInFile.get(clean);
+      errors.push(`Cédula/RUC repetida en el archivo (igual a fila ${prevRow})`);
+    } else if (clean) {
+      seenInFile.set(clean, rowIndex);
+    }
+
+    // 6. Duplicado vs sistema (advertencia, no bloquea)
+    if (existingIds.has(clean) && errors.length === 0)
+      errors.push('⚠️ Ya existe en el sistema (se sobreescribirá)');
+  }
+
+  return errors;
+}
+// ─── Mapear encabezados flexibles a campos internos ──────────────────────────
 function normalizeRow(raw) {
   const get = (...keys) => {
     for (const k of keys) {
@@ -55,11 +94,17 @@ function normalizeRow(raw) {
     }
     return '';
   };
+
+  // Detectar extranjero: SI, S, YES, 1, TRUE → true
+  const foreignRaw = get('extranjero', 'foreign', 'isforeignclient', 'esextranjero').toUpperCase();
+  const foreign = ['SI', 'S', 'YES', '1', 'TRUE', 'SÍ'].includes(foreignRaw);
+
   return {
     name:           get('nombre', 'name', 'cliente', 'razonsocial'),
-    identification: get('cedularuc', 'cedula', 'ruc', 'identification', 'id'),
+    identification: get('cedularuc', 'cedula', 'ruc', 'identification', 'id', 'pasaporte', 'passport'),
     phone:          get('telefono', 'phone', 'celular', 'movil'),
     address:        get('direccion', 'address', 'domicilio'),
+    foreign,
   };
 }
 
@@ -75,18 +120,27 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
 
   const existingIds = new Set(existingClients.map(c => c.identification?.replace(/\s/g, '')));
 
-  // Validar filas
-  const validated = rows.map(row => {
-    const errors = [];
-    if (!row.name)           errors.push('Nombre vacío');
-    if (!row.identification) errors.push('Cédula/RUC vacío');
-    else if (existingIds.has(row.identification.replace(/\s/g, '')))
-      errors.push('Ya existe en el sistema');
-    return { ...row, errors, valid: errors.length === 0 };
+  // Validar filas con todos los checks: nombre, cédula, longitud, duplicados
+  const seenInFile = new Map();
+  const validated = rows.map((row, idx) => {
+    const errors = validateRow(row, existingIds, seenInFile, idx + 1);
+    // Filas con solo el aviso de "ya existe" se marcan como válidas (se sobreescribe)
+    const hasBlockingError = errors.some(e => !e.startsWith('⚠️'));
+    return { ...row, errors, valid: !hasBlockingError };
   });
 
   const validCount   = validated.filter(r => r.valid).length;
   const invalidCount = validated.length - validCount;
+
+  // Agrupar errores por tipo para el panel de alertas
+  const errorGroups = {
+    nombreVacio:     validated.map((r,i) => r.errors.some(e => e.includes('Nombre vacío'))            ? i+1 : null).filter(Boolean),
+    cedulaVacia:     validated.map((r,i) => r.errors.some(e => e.includes('vacío') && !e.includes('Nombre')) ? i+1 : null).filter(Boolean),
+    longitud:        validated.map((r,i) => r.errors.some(e => e.includes('Longitud') || e.includes('dígito')) ? i+1 : null).filter(Boolean),
+    soloNumeros:     validated.map((r,i) => r.errors.some(e => e.includes('Solo se permiten números'))        ? i+1 : null).filter(Boolean),
+    duplicadoArchivo:validated.map((r,i) => r.errors.some(e => e.includes('repetida en el archivo'))          ? i+1 : null).filter(Boolean),
+    duplicadoSistema:validated.map((r,i) => r.errors.some(e => e.includes('Ya existe en el sistema'))         ? i+1 : null).filter(Boolean),
+  };
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -221,40 +275,114 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                 </div>
               </div>
 
+              {/* Panel de alertas agrupadas */}
+              {invalidCount > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-bold text-red-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <AlertCircle size={13} />
+                    {invalidCount} fila{invalidCount !== 1 ? 's' : ''} con errores que no se importarán
+                  </p>
+                  {errorGroups.nombreVacio.length > 0 && (
+                    <p className="text-xs text-red-700">
+                      <span className="font-bold">Nombre vacío</span>
+                      <span className="text-red-500"> → fila{errorGroups.nombreVacio.length > 1 ? 's' : ''} {errorGroups.nombreVacio.join(', ')}</span>
+                    </p>
+                  )}
+                  {errorGroups.cedulaVacia.length > 0 && (
+                    <p className="text-xs text-red-700">
+                      <span className="font-bold">Cédula/RUC vacío</span>
+                      <span className="text-red-500"> → fila{errorGroups.cedulaVacia.length > 1 ? 's' : ''} {errorGroups.cedulaVacia.join(', ')}</span>
+                    </p>
+                  )}
+                  {errorGroups.soloNumeros.length > 0 && (
+                    <p className="text-xs text-red-700">
+                      <span className="font-bold">Contiene letras (cliente nacional)</span>
+                      <span className="text-red-500"> → fila{errorGroups.soloNumeros.length > 1 ? 's' : ''} {errorGroups.soloNumeros.join(', ')} — pon Extranjero=SI en el archivo</span>
+                    </p>
+                  )}
+                  {errorGroups.longitud.length > 0 && (
+                    <p className="text-xs text-red-700">
+                      <span className="font-bold">Longitud inválida (debe ser 10 o 13 dígitos)</span>
+                      <span className="text-red-500"> → fila{errorGroups.longitud.length > 1 ? 's' : ''} {errorGroups.longitud.join(', ')}</span>
+                    </p>
+                  )}
+                  {errorGroups.duplicadoArchivo.length > 0 && (
+                    <p className="text-xs text-red-700">
+                      <span className="font-bold">Cédula/RUC repetida en el archivo</span>
+                      <span className="text-red-500"> → fila{errorGroups.duplicadoArchivo.length > 1 ? 's' : ''} {errorGroups.duplicadoArchivo.join(', ')}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Aviso sobreescritura */}
+              {errorGroups.duplicadoSistema.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs font-bold text-amber-700 mb-0.5">
+                    ⚠️ {errorGroups.duplicadoSistema.length} cliente{errorGroups.duplicadoSistema.length > 1 ? 's' : ''} ya exist{errorGroups.duplicadoSistema.length > 1 ? 'en' : 'e'} en el sistema
+                  </p>
+                  <p className="text-xs text-amber-600">
+                    Fila{errorGroups.duplicadoSistema.length > 1 ? 's' : ''} {errorGroups.duplicadoSistema.join(', ')} — se sobreescribirán con los datos del archivo.
+                  </p>
+                </div>
+              )}
+
               {/* Tabla de vista previa */}
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="overflow-x-auto max-h-80">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                       <tr>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">#</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Estado</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Nombre</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Cédula / RUC</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Cédula / RUC / Pasaporte</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Teléfono</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Dirección</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Tipo</th>
                         <th className="px-3 py-2.5"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {validated.map((row, idx) => (
-                        <tr key={idx} className={row.valid ? 'bg-white hover:bg-slate-50' : 'bg-red-50'}>
+                        <tr key={idx} className={
+                          !row.valid
+                            ? 'bg-red-50'
+                            : row.errors.some(e => e.startsWith('⚠️'))
+                              ? 'bg-amber-50'
+                              : 'bg-white hover:bg-slate-50'
+                        }>
+                          <td className="px-3 py-2 text-slate-400 font-mono font-bold">{idx + 1}</td>
                           <td className="px-3 py-2">
-                            {row.valid
+                            {row.valid && !row.errors.some(e => e.startsWith('⚠️'))
                               ? <CheckCircle size={14} className="text-green-500" />
                               : (
                                 <div className="flex flex-col gap-0.5">
-                                  <AlertCircle size={14} className="text-red-500" />
-                                  {row.errors.map((e, i) => (
-                                    <span key={i} className="text-red-500 text-xs leading-tight">{e}</span>
+                                  {!row.valid && <AlertCircle size={14} className="text-red-500" />}
+                                  {row.errors.filter(e => !e.startsWith('⚠️')).map((e, i) => (
+                                    <span key={i} className="text-red-600 text-xs leading-tight font-medium">{e}</span>
+                                  ))}
+                                  {row.errors.filter(e => e.startsWith('⚠️')).map((e, i) => (
+                                    <span key={i} className="text-amber-600 text-xs leading-tight">{e}</span>
                                   ))}
                                 </div>
                               )
                             }
                           </td>
-                          <td className="px-3 py-2 font-medium text-slate-800">{row.name || <span className="text-red-400 italic">vacío</span>}</td>
-                          <td className="px-3 py-2 font-mono text-slate-600">{row.identification || <span className="text-red-400 italic">vacío</span>}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800">
+                            {row.name || <span className="text-red-400 italic">vacío</span>}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-slate-600">
+                            {row.identification || <span className="text-red-400 italic">vacío</span>}
+                          </td>
                           <td className="px-3 py-2 text-slate-500">{row.phone || '—'}</td>
                           <td className="px-3 py-2 text-slate-500 max-w-xs truncate">{row.address || '—'}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.foreign
+                              ? <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">🌐 Extranjero</span>
+                              : <span className="text-slate-400 text-xs">Nacional</span>
+                            }
+                          </td>
                           <td className="px-3 py-2">
                             <button onClick={() => handleRemoveRow(idx)}
                               className="text-slate-300 hover:text-red-500 transition-colors"
